@@ -2,19 +2,6 @@
 
 A PayPal-like mobile banking application built with microservices — Java 21 + Spring Boot 3, React Native, and a complete Claude Code workspace for AI-assisted development.
 
-## Quick Start
-
-```bash
-cd d:\project\vibe\bank-application
-claude
-```
-
-Claude reads `CLAUDE.md` automatically. To continue from Phase 2:
-```
-"Read docs/05-build-phases.md and start Phase 2 — User Service and Account Service."
-```
-
----
 
 ## Project Structure
 
