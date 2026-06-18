@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16:///auth_db?TC_REUSABLE=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: bankapp
+    password: secret
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6370  # Use embedded or mock; override in CI
+
+  kafka:
+    bootstrap-servers: localhost:9999  # Disabled in unit tests
+
+jwt:
+  secret: test-secret-must-be-at-least-256-bits-long-for-hmac-sha256!!
+  access-expiry-ms: 900000
+  refresh-expiry-ms: 604800000

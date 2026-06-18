@@ -1,0 +1,31 @@
+FALSE POSITIVES — Automatically exclude these from findings:
+
+1. DoS / resource exhaustion / DDoS — handled by K8s resource limits, HPA, and API Gateway rate limiting
+2. Missing rate limiting on individual service endpoints — rate limiting handled at Spring Cloud Gateway layer for all traffic
+3. Tabnabbing / reverse tabnabbing — not applicable, this is a mobile + internal admin app
+4. Test files — any file matching `*Test.java`, `*IT.java`, `*Spec.ts`, `*.test.ts`, `__tests__/**`
+5. Documentation files — `*.md`, `*.rst`, `docs/**`, `reference/**`
+6. Missing CSRF protection — not applicable, we use stateless JWT auth (not cookies for API calls)
+7. Regex DoS (ReDoS) in input validation — we have gateway request timeouts (30s)
+8. GraphQL introspection — not using GraphQL
+9. Missing HSTS header — enforced at ingress/load balancer level, not service level
+10. Memory safety issues — using JVM (managed memory) and TypeScript
+11. Timing attacks on non-cryptographic string comparison — only flag timing on password/token comparison
+
+SIGNAL QUALITY CRITERIA — For remaining findings, assess:
+1. Can an unauthenticated or unprivileged user exploit this?
+2. Is there potential for financial loss, account takeover, or data exfiltration?
+3. Is this exploitable in our Docker/K8s production environment?
+4. Does this bypass the Spring Cloud Gateway JWT validation?
+
+STACK-SPECIFIC PRECEDENTS — Do not flag these as vulnerabilities:
+1. We use Spring Data JPA with named parameters — SQL injection only valid if raw native queries with concatenation are used
+2. JWT auth is validated at gateway level with Spring Security — auth bypass must defeat Spring Security's JwtAuthenticationFilter
+3. All inter-service communication is inside K8s cluster over private network — no external exposure of internal service ports
+4. Secrets are in environment variables / K8s Secrets — flag only if they appear in source code or committed config
+5. Redis is internal-only (K8s ClusterIP service) — flag only if Redis auth (`requirepass`) is disabled
+6. MongoDB is internal-only (K8s ClusterIP service) — flag only if MongoDB auth is disabled
+7. We use BCryptPasswordEncoder for all passwords — flag only if MD5/SHA/plaintext is used
+8. Verbose error messages are acceptable in `application-dev.yml` — only flag if in `application-prod.yml` or `application.yml` default
+9. All file uploads go to S3 with virus scanning — flag local filesystem writes only
+10. Frontend input validation (React Native, React) is for UX only — backend validation is the security control

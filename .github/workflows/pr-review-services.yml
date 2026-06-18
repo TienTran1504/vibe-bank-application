@@ -1,0 +1,69 @@
+name: Claude Review — Services Only
+
+# Targeted review triggered only when backend service code changes.
+# More focused prompt than the general PR review.
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "services/**/*.java"
+      - "services/**/pom.xml"
+      - "services/**/application*.yml"
+
+jobs:
+  services-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Backend Service Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review the changed Java / Spring Boot service files.
+
+            **Check specifically:**
+
+            1. **Financial Safety**
+               - All monetary amounts use `BigDecimal` — never `float`/`double`
+               - `NUMERIC(19,4)` in any new DB columns
+               - `SELECT FOR UPDATE` or `@Version` on balance updates
+               - Idempotency key validated before any debit
+
+            2. **Spring Boot Patterns**
+               - Constructor injection (not `@Autowired` field injection)
+               - `@Valid` on all `@RequestBody` parameters
+               - One `@RestControllerAdvice` per service — no scattered try/catch in controllers
+               - `@Transactional` only on `@Service` methods — not on controllers
+
+            3. **Kafka Event Safety**
+               - Consumers are idempotent
+               - Outbox pattern used for Kafka publish (DB write + outbox in same transaction)
+               - DLT configured for consumer errors
+
+            4. **Security**
+               - `@PreAuthorize` present on endpoints that access other users' data
+               - No raw SQL string concatenation
+               - No secrets in source files
+
+            5. **Database**
+               - New Flyway migrations: sequential version numbers, no modification of existing files
+               - FK columns have indexes
+               - NOT NULL on required columns
+
+            Provide inline comments where possible. Be concise — flag bugs and risks, not style.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

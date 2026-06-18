@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "claude-sonnet-4-6",
+  "autoMemoryEnabled": true,
+  "autoCompactEnabled": true,
+  "fileCheckpointingEnabled": true,
+  "permissions": {
+    "allow": [
+      "Bash(mvn *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(gradle *)",
+      "Bash(docker-compose *)",
+      "Bash(docker build *)",
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl logs *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | bash)",
+      "Read(.env*)",
+      "Bash(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"File edited. Remember to run tests.\"",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "JAVA_HOME": "",
+    "ANDROID_HOME": ""
+  }
+}

@@ -1,0 +1,76 @@
+name: Claude Code Review
+
+# Triggered on PRs to main. Claude reviews changed files with context-aware
+# focus: backend changes get security+architecture review, mobile gets UX+security.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: PR Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a PR for a PayPal-like banking microservices app.
+            Stack: Java 21 + Spring Boot 3 (backend), React Native (mobile), React+Vite (admin), Kafka, PostgreSQL, Redis, MongoDB.
+
+            Perform a thorough review of the changed files. Focus on:
+
+            ## 1. Security (CRITICAL — this is a banking app)
+            - JWT validation, token storage, and authentication bypass risks
+            - IDOR / missing authorization checks (`@PreAuthorize` on sensitive endpoints)
+            - SQL/NoSQL injection — no string concatenation in queries
+            - Hardcoded secrets or credentials
+            - Financial: BigDecimal for money, missing idempotency keys, race conditions in balance updates
+            - Mass assignment — DTOs not binding sensitive fields (role, status, balance)
+
+            ## 2. Business Logic Correctness
+            - Balance deduction uses `SELECT FOR UPDATE` or optimistic locking
+            - Saga compensations defined for every saga step
+            - Kafka consumers are idempotent (processing same event twice is safe)
+            - Amount validation: > 0, max limit enforced server-side
+            - Transaction cannot leave accounts in intermediate state
+
+            ## 3. Code Quality
+            - SOLID principles — no "God service" classes, proper layering (controller/service/repository)
+            - No business logic in `@RestController`, no HTTP concerns in `@Service`
+            - `@Valid` present on all request bodies
+            - Error handling: `@RestControllerAdvice` used, not individual try/catch per method
+            - Money amounts: `NUMERIC(19,4)` in DB, `BigDecimal` in Java — never `float`/`double`
+
+            ## 4. React Native (if mobile code changed)
+            - TypeScript strict — no `any`
+            - Tokens stored in Keychain, not AsyncStorage
+            - Biometric confirmation before money transfers
+            - FlatList (not ScrollView) for lists
+            - Money amounts displayed with currency + 2 decimal places
+
+            ## 5. Testing
+            - New service methods have unit tests
+            - New endpoints have integration tests
+            - Tests are not mocking the DB when they should use a real connection
+
+            Provide inline comments on specific lines and a top-level summary.
+            Focus on bugs and security — not style preferences.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"

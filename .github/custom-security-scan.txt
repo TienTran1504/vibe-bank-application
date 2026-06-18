@@ -1,0 +1,39 @@
+**Financial Services Security — Banking App Specific:**
+- Transaction replay attacks: check if `idempotency_key` is validated before any balance debit
+- Double-spending vulnerabilities: verify `SELECT FOR UPDATE` or optimistic locking (`@Version`) on balance updates in account-service
+- Negative amount injection: verify `amount > 0` checked at API layer (Jakarta Validation) AND at DB level (CHECK constraint)
+- Currency manipulation: verify exchange rate never comes from user-supplied request body
+- Saga partial failure: verify compensating transaction exists for every saga step in transaction-service
+- Fraud gate bypass: verify fraud-service is called BEFORE committing any transfer, and unavailability causes HOLD not APPROVE
+- KYC gate bypass: verify high-value transfers ($10k+) check `kyc_status == APPROVED` server-side, not relying on JWT claim
+- Account ownership bypass (IDOR): verify `fromAccountId` belongs to the JWT-authenticated user before any debit
+- Daily limit bypass: verify per-user cumulative daily limit enforced at server, not client
+
+**JWT & Authentication — Spring Security Specific:**
+- JWT secret hardcoded in `application.yml` or `application.properties` (must be env var)
+- JWT `exp`, `iss`, `aud` not validated in Spring Security filter
+- Refresh token not invalidated on reuse (must implement RT rotation + family revocation)
+- JWT blacklist (logout) not checked in gateway filter
+- `BCryptPasswordEncoder` strength < 12
+- OTP generated with `Math.random()` instead of `SecureRandom`
+
+**Kafka / Event Streaming — Fintech Context:**
+- Kafka consumer not idempotent — processing the same event twice causes double credit/debit
+- Outbox table write and DB write in separate transactions (violates atomicity)
+- No dead-letter topic configured for consumer failures
+- Correlation ID not propagated from HTTP request through to Kafka event payload
+
+**Spring Boot / Java Specific:**
+- `@Entity` class used directly as `@RequestBody` — allows mass assignment of sensitive fields
+- `float` or `double` used for monetary amounts in `@Entity` or DTO classes
+- Business logic in `@RestController` instead of `@Service`
+- `@Transactional` on controller method (should only be on service)
+- Native SQL query (`nativeQuery = true`) with string concatenation of user input
+- MongoDB: user input passed as raw `Document` or `BasicDBObject` without Criteria builder
+
+**PCI DSS / Regulatory Compliance:**
+- Full Primary Account Number (PAN/card number) stored in database plaintext
+- CVV stored anywhere (must never be persisted post-authorization)
+- Cardholder data in application logs
+- Audit log events missing for: login, logout, transfer, KYC status change, admin actions
+- Audit log writable/deletable by application — must be append-only

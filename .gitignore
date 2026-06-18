@@ -1,0 +1,53 @@
+# Personal local Claude config (never commit)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/wrapper/maven-wrapper.jar
+
+# Node / React Native
+node_modules/
+.expo/
+dist/
+build/
+*.tsbuildinfo
+
+# Android / iOS
+android/.gradle/
+android/build/
+ios/Pods/
+ios/build/
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+
+# Application logs
+*.log
+logs/
+
+# Local Spring Boot config overrides
+application-local.yml
+application-local.properties
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,169 @@
+services:
+
+  # ─── Databases ──────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bankapp-postgres
+    environment:
+      POSTGRES_USER: bankapp
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U bankapp" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: bankapp-redis
+    command: redis-server --requirepass secret
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "secret", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: bankapp-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bankapp
+      MONGO_INITDB_ROOT_PASSWORD: secret
+      MONGO_INITDB_DATABASE: bankapp
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Kafka ───────────────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: bankapp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "echo ruok | nc localhost 2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: bankapp-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: bankapp-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    ports:
+      - "9093:8080"
+
+  # ─── Observability ──────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: bankapp-prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: bankapp-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: secret
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+
+  # ─── Services ────────────────────────────────────────────────────────────────
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: bankapp-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-must-be-256-bits!!}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: bankapp-auth
+    ports:
+      - "8001:8001"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-must-be-256-bits!!}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongo_data:
+  grafana_data:
