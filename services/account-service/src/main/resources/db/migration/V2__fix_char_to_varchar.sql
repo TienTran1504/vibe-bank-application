@@ -1,0 +1,1 @@
+ALTER TABLE bank_accounts ALTER COLUMN currency TYPE VARCHAR(3);

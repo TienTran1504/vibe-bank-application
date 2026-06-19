@@ -16,6 +16,10 @@
         <module>services/base-domain</module>
         <module>services/gateway</module>
         <module>services/auth-service</module>
+        <module>services/user-service</module>
+        <module>services/account-service</module>
+        <module>services/fraud-service</module>
+        <module>services/transaction-service</module>
     </modules>
 
     <properties>
@@ -144,6 +148,7 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>

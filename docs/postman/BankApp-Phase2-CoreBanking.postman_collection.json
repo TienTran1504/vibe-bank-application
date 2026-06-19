@@ -1,0 +1,772 @@
+{
+  "info": {
+    "name": "BankApp — Phase 2: Core Banking",
+    "description": "End-to-end testing for User, Account, Transaction, and Fraud services.\nAll requests route through the API Gateway at :8080.\n\n▶ GOLDEN PATH ORDER:\n  0. Auth Setup → Register → Login\n  1. User Service → Create Profile → Submit KYC\n  2. Account Service → Create Account → Top Up\n  3. Transaction Service → Transfer → Check Status\n\n⚠ KYC APPROVAL: There is no admin UI yet (Phase 5). To approve KYC manually,\n  call the auth-service directly or update the DB:\n  UPDATE user_profiles SET kyc_status = 'APPROVED' WHERE user_id = '<your-uuid>';",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway_url",        "value": "http://localhost:8080", "type": "string" },
+    { "key": "access_token",       "value": "",                      "type": "string" },
+    { "key": "refresh_token",      "value": "",                      "type": "string" },
+    { "key": "user_id",            "value": "",                      "type": "string" },
+    { "key": "my_account_id",      "value": "",                      "type": "string" },
+    { "key": "recipient_account_id","value": "",                     "type": "string" },
+    { "key": "last_transaction_id","value": "",                      "type": "string" },
+    { "key": "idempotency_key",    "value": "",                      "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "0. Auth Setup",
+      "description": "Register a user and log in to get tokens. The Login script auto-saves access_token and refresh_token.",
+      "item": [
+        {
+          "name": "0.1 Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/auth/register",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","auth","register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"tien@example.com\",\n  \"password\": \"Test@1234\",\n  \"phone\": \"+84901234567\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Register a new user. Returns 201 on success, 409 if email already exists."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created", "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Registration successful\",\n  \"timestamp\": \"2026-06-19T08:00:00Z\"\n}"
+            },
+            {
+              "name": "409 Email already registered",
+              "status": "Conflict", "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"CONFLICT\",\n  \"message\": \"Email already registered\",\n  \"timestamp\": \"2026-06-19T08:00:00Z\",\n  \"traceId\": \"abc-123\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "0.2 Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('access_token', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refresh_token', json.data.refreshToken);",
+                  "  console.log('✅ Tokens saved — access_token and refresh_token updated');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","auth","login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"tien@example.com\",\n  \"password\": \"Test@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Login and auto-save access_token + refresh_token to collection variables. Run this before any protected request."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiJ9...\",\n    \"refreshToken\": \"a4551938-a9cb-4c6d-8bd8-19bd28c2aba8\",\n    \"expiresIn\": 900,\n    \"requiresMfa\": false\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "0.3 Register Second User (for transfers)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/auth/register",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","auth","register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"password\": \"Test@1234\",\n  \"phone\": \"+84901234568\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Register a second user. You'll need to log in as alice and create an account to use as the transfer recipient."
+          }
+        },
+        {
+          "name": "0.4 Login as Second User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('access_token_b', json.data.accessToken);",
+                  "  console.log('✅ Second user token saved to access_token_b');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","auth","login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"password\": \"Test@1234\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "1. User Service",
+      "description": "Profile CRUD and KYC flow. All requests require Bearer token from step 0.2.",
+      "item": [
+        {
+          "name": "1.1 Create Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/users/me",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","users","me"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Tien\",\n  \"lastName\": \"Tran\",\n  \"dateOfBirth\": \"1995-03-05\",\n  \"address\": \"123 Le Loi, Ho Chi Minh City\",\n  \"countryCode\": \"VN\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a user profile. Returns 201. countryCode must be a 2-letter ISO code (e.g. VN, US, GB)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created", "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"userId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\n    \"firstName\": \"Tien\",\n    \"lastName\": \"Tran\",\n    \"dateOfBirth\": \"1995-03-05\",\n    \"address\": \"123 Le Loi, Ho Chi Minh City\",\n    \"countryCode\": \"VN\",\n    \"kycStatus\": \"PENDING\",\n    \"createdAt\": \"2026-06-19T08:01:00Z\",\n    \"updatedAt\": \"2026-06-19T08:01:00Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:01:00Z\"\n}"
+            },
+            {
+              "name": "409 Profile already exists",
+              "status": "Conflict", "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"CONFLICT\",\n  \"message\": \"Profile already exists for this user\",\n  \"timestamp\": \"2026-06-19T08:01:00Z\",\n  \"traceId\": \"abc-123\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.2 Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/users/me",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","users","me"]
+            },
+            "description": "Get the currently logged-in user's profile."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"userId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\n    \"firstName\": \"Tien\",\n    \"lastName\": \"Tran\",\n    \"kycStatus\": \"PENDING\",\n    \"createdAt\": \"2026-06-19T08:01:00Z\",\n    \"updatedAt\": \"2026-06-19T08:01:00Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:02:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.3 Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/users/me",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","users","me"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"456 Nguyen Hue, Ho Chi Minh City\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Partial update — only fields present in the body are updated."
+          }
+        },
+        {
+          "name": "1.4 Submit KYC",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/users/me/kyc",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","users","me","kyc"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentType\": \"PASSPORT\",\n  \"documentNumber\": \"B12345678\",\n  \"fullName\": \"Tran Dung Tien\",\n  \"expiryDate\": \"2030-12-31\",\n  \"frontImageUrl\": \"https://example.com/passport-front.jpg\",\n  \"backImageUrl\": \"https://example.com/passport-back.jpg\",\n  \"selfieUrl\": \"https://example.com/selfie.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Submit KYC documents. Status moves from PENDING → SUBMITTED.\ndocumentType: PASSPORT | NATIONAL_ID | DRIVERS_LICENSE\n\nAfter submitting, approve KYC manually via DB:\n  UPDATE user_profiles SET kyc_status='APPROVED', kyc_reviewed_at=NOW() WHERE user_id='<uuid>';\nThen re-login and proceed to Account Service."
+          },
+          "response": [
+            {
+              "name": "201 Submitted",
+              "status": "Created", "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"status\": \"SUBMITTED\",\n    \"submittedAt\": \"2026-06-19T08:03:00Z\",\n    \"documentType\": \"PASSPORT\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:03:00Z\"\n}"
+            },
+            {
+              "name": "409 KYC already approved",
+              "status": "Conflict", "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"CONFLICT\",\n  \"message\": \"KYC already approved\",\n  \"timestamp\": \"2026-06-19T08:03:00Z\",\n  \"traceId\": \"abc-123\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.5 Get KYC Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/users/me/kyc",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","users","me","kyc"]
+            },
+            "description": "Returns the current KYC status: PENDING | SUBMITTED | APPROVED | REJECTED."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"status\": \"SUBMITTED\",\n    \"submittedAt\": \"2026-06-19T08:03:00Z\",\n    \"reviewedAt\": null,\n    \"documentType\": \"PASSPORT\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:04:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "2. Account Service",
+      "description": "Create accounts, check balances, and top up. All requests require Bearer token.",
+      "item": [
+        {
+          "name": "2.1 Create Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('my_account_id', json.data.id);",
+                  "  console.log('✅ my_account_id saved: ' + json.data.id);",
+                  "  console.log('   Account number: ' + json.data.accountNumber);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountType\": \"CHECKING\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a new bank account. The test script auto-saves the account ID to my_account_id.\naccountType: SAVINGS | CHECKING | WALLET\ncurrency: USD | EUR | VND"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created", "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"userId\": \"7c9e6679-7425-40de-944b-e07fc1f90ae7\",\n    \"accountNumber\": \"GB42BANK12348765432\",\n    \"accountType\": \"CHECKING\",\n    \"currency\": \"USD\",\n    \"balance\": 0.0000,\n    \"availableBalance\": 0.0000,\n    \"status\": \"ACTIVE\",\n    \"createdAt\": \"2026-06-19T08:05:00Z\",\n    \"updatedAt\": \"2026-06-19T08:05:00Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:05:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2.2 List My Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts"]
+            },
+            "description": "Returns all accounts belonging to the authenticated user."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"accountNumber\": \"GB42BANK12348765432\",\n      \"accountType\": \"CHECKING\",\n      \"currency\": \"USD\",\n      \"balance\": 0.0000,\n      \"availableBalance\": 0.0000,\n      \"status\": \"ACTIVE\"\n    }\n  ],\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:05:30Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2.3 Get Account by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts/{{my_account_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts","{{my_account_id}}"]
+            },
+            "description": "Get details and current balance for a specific account. Returns 403 if you don't own the account."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"accountNumber\": \"GB42BANK12348765432\",\n    \"currency\": \"USD\",\n    \"balance\": 500.0000,\n    \"availableBalance\": 500.0000,\n    \"status\": \"ACTIVE\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:06:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2.4 Top Up Account (mock)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts/{{my_account_id}}/top-up",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts","{{my_account_id}}","top-up"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500.00\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Mock top-up — adds funds directly without a real payment gateway (Phase 4 will add real payment). Returns the updated account with new balance."
+          },
+          "response": [
+            {
+              "name": "200 OK — balance updated",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"currency\": \"USD\",\n    \"balance\": 500.0000,\n    \"availableBalance\": 500.0000,\n    \"status\": \"ACTIVE\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:06:30Z\"\n}"
+            },
+            {
+              "name": "422 Account frozen",
+              "status": "Unprocessable Entity", "code": 422,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"ACCOUNT_FROZEN\",\n  \"message\": \"Account is not active\",\n  \"timestamp\": \"2026-06-19T08:06:30Z\",\n  \"traceId\": \"abc-123\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2.5 Create Recipient Account (as second user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "  pm.collectionVariables.set('recipient_account_id', json.data.id);",
+                  "  console.log('✅ recipient_account_id saved: ' + json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token_b}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountType\": \"CHECKING\",\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create an account for the second user (alice). Uses access_token_b from step 0.4.\nThe test script saves recipient_account_id for use in the transfer step."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "3. Transaction Service",
+      "description": "P2P transfers with idempotency, fraud check, and Saga-based execution.",
+      "item": [
+        {
+          "name": "3.1 Transfer Money",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate a unique idempotency key for this transfer",
+                  "var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                  "  var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                  "  return v.toString(16);",
+                  "});",
+                  "pm.collectionVariables.set('idempotency_key', uuid);",
+                  "console.log('🔑 Generated idempotency key: ' + uuid);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.transactionId) {",
+                  "  pm.collectionVariables.set('last_transaction_id', json.data.transactionId);",
+                  "  console.log('✅ Transaction created: ' + json.data.transactionId + ' status=' + json.data.status);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{idempotency_key}}", "description": "Auto-generated by pre-request script. For retry testing, set this manually to a fixed UUID." }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/transfer",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{my_account_id}}\",\n  \"toAccountId\": \"{{recipient_account_id}}\",\n  \"amount\": 50.00,\n  \"currency\": \"USD\",\n  \"description\": \"Dinner split\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Initiate a P2P transfer. Returns 202 Accepted immediately — the actual balance update is async via Kafka Saga.\n\nPre-request script auto-generates a UUID idempotency key each run.\nTo test idempotency: run this once, then manually set X-Idempotency-Key to the same value and run again — should return the same transactionId.\n\nFlow: this endpoint → fraud check → create PENDING tx → outbox → Kafka → account-service deducts/credits → tx marked COMPLETED"
+          },
+          "response": [
+            {
+              "name": "202 Accepted — PENDING",
+              "status": "Accepted", "code": 202,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"transactionId\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n    \"status\": \"PENDING\",\n    \"estimatedCompletionAt\": \"2026-06-19T08:08:05Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:08:00Z\"\n}"
+            },
+            {
+              "name": "202 Accepted — already processed (idempotent)",
+              "status": "Accepted", "code": 202,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"transactionId\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n    \"status\": \"COMPLETED\",\n    \"estimatedCompletionAt\": \"2026-06-19T08:08:05Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:08:30Z\"\n}"
+            },
+            {
+              "name": "403 Fraud Blocked",
+              "status": "Forbidden", "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"FRAUD_BLOCKED\",\n  \"message\": \"Transaction blocked: Transactions above $10,000 require approved KYC\",\n  \"timestamp\": \"2026-06-19T08:08:00Z\",\n  \"traceId\": \"abc-123\"\n}"
+            },
+            {
+              "name": "400 Missing idempotency key",
+              "status": "Bad Request", "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"VALIDATION_FAILED\",\n  \"message\": \"Required header missing: X-Idempotency-Key\",\n  \"timestamp\": \"2026-06-19T08:08:00Z\",\n  \"traceId\": \"abc-123\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "3.2 Get Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/{{last_transaction_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","{{last_transaction_id}}"]
+            },
+            "description": "Poll the transaction status. Run a few seconds after step 3.1 to see it move from PENDING → COMPLETED (or FAILED)."
+          },
+          "response": [
+            {
+              "name": "200 OK — COMPLETED",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n    \"fromAccountId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"toAccountId\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"amount\": 50.0000,\n    \"currency\": \"USD\",\n    \"type\": \"TRANSFER\",\n    \"status\": \"COMPLETED\",\n    \"description\": \"Dinner split\",\n    \"completedAt\": \"2026-06-19T08:08:03Z\",\n    \"createdAt\": \"2026-06-19T08:08:00Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:08:05Z\"\n}"
+            },
+            {
+              "name": "200 OK — FAILED (insufficient funds)",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n    \"status\": \"FAILED\",\n    \"errorCode\": \"INSUFFICIENT_FUNDS\",\n    \"createdAt\": \"2026-06-19T08:08:00Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:08:05Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "3.3 List My Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions?page=0&size=20",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "Paginated transaction history for the logged-in user. Sorted by createdAt descending."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"content\": [\n      {\n        \"id\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n        \"amount\": 50.0000,\n        \"currency\": \"USD\",\n        \"type\": \"TRANSFER\",\n        \"status\": \"COMPLETED\",\n        \"description\": \"Dinner split\",\n        \"createdAt\": \"2026-06-19T08:08:00Z\"\n      }\n    ],\n    \"page\": 0,\n    \"size\": 20,\n    \"totalElements\": 1,\n    \"totalPages\": 1,\n    \"last\": true\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:09:00Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "4. Edge Cases & Fraud Rules",
+      "description": "Validation failures, fraud triggers, and idempotency verification.",
+      "item": [
+        {
+          "name": "4.1 Transfer — missing X-Idempotency-Key (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/transfer",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{my_account_id}}\",\n  \"toAccountId\": \"{{recipient_account_id}}\",\n  \"amount\": 10.00,\n  \"currency\": \"USD\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Omits the X-Idempotency-Key header. Expect 400 VALIDATION_FAILED."
+          }
+        },
+        {
+          "name": "4.2 Transfer — same idempotency key (expect cached 202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{idempotency_key}}", "description": "Uses the SAME key as the last successful transfer — should return the same transactionId." }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/transfer",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{my_account_id}}\",\n  \"toAccountId\": \"{{recipient_account_id}}\",\n  \"amount\": 50.00,\n  \"currency\": \"USD\",\n  \"description\": \"Dinner split\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Replay with the same idempotency key from 3.1. The response should be identical (same transactionId, no double charge)."
+          }
+        },
+        {
+          "name": "4.3 Transfer — amount exceeds balance (expect FAILED tx)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                  "  var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                  "  return v.toString(16);",
+                  "});",
+                  "pm.collectionVariables.set('idempotency_key', uuid);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{idempotency_key}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/transfer",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{my_account_id}}\",\n  \"toAccountId\": \"{{recipient_account_id}}\",\n  \"amount\": 999999.00,\n  \"currency\": \"USD\",\n  \"description\": \"Try to overdraw\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Transfer more than the available balance. Expect: 202 Accepted initially (fraud passes), then transaction eventually moves to FAILED with errorCode INSUFFICIENT_FUNDS. Check with 3.2 after a few seconds."
+          }
+        },
+        {
+          "name": "4.4 Transfer — >$10,000 without KYC (expect 403 FRAUD_BLOCKED)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {",
+                  "  var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);",
+                  "  return v.toString(16);",
+                  "});",
+                  "pm.collectionVariables.set('idempotency_key', uuid);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Idempotency-Key", "value": "{{idempotency_key}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions/transfer",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions","transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"{{my_account_id}}\",\n  \"toAccountId\": \"{{recipient_account_id}}\",\n  \"amount\": 15000.00,\n  \"currency\": \"USD\",\n  \"description\": \"High-value transfer without KYC\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Requires KYC status = PENDING or SUBMITTED (not APPROVED). Fraud rule blocks amounts >$10k without approved KYC. Expect 403 FRAUD_BLOCKED."
+          }
+        },
+        {
+          "name": "4.5 Access account of another user (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts/{{recipient_account_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts","{{recipient_account_id}}"]
+            },
+            "description": "Try to read alice's account using tien's token. Expect 403 FORBIDDEN."
+          }
+        },
+        {
+          "name": "4.6 Call protected endpoint with no token (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts"]
+            },
+            "description": "No Authorization header. Gateway rejects with 401 before the request reaches account-service."
+          }
+        },
+        {
+          "name": "4.7 Call with logged-out token (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}", "description": "Run step 0.2 Logout first, then use the same token here — should now be 401." }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/accounts",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","accounts"]
+            },
+            "description": "After calling POST /api/v1/auth/logout, the JTI is blacklisted in Redis. The gateway now checks the blacklist on every request, so this should return 401."
+          }
+        }
+      ]
+    }
+
+  ]
+}

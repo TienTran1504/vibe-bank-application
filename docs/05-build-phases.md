@@ -26,28 +26,29 @@
 ## Phase 2 — Core Banking (Weeks 4–7)
 **Goal**: Working accounts and P2P transfers
 
-- [ ] User Service:
-  - [ ] Profile CRUD
-  - [ ] KYC document upload (MongoDB storage)
-  - [ ] KYC status flow (PENDING → APPROVED / REJECTED)
-  - [ ] Kafka: publish `user.kyc.approved` event
-- [ ] Account Service:
-  - [ ] Create bank account (IBAN generation)
-  - [ ] Get balance
-  - [ ] Multi-currency support (USD, EUR, VND)
-  - [ ] Consume `user.kyc.approved` → auto-create default account
-- [ ] Transaction Service:
-  - [ ] P2P transfer (Saga pattern)
-  - [ ] Idempotency key handling
-  - [ ] Transaction history with pagination
-  - [ ] Outbox pattern for Kafka publishing
-  - [ ] Fraud check call before committing
-- [ ] Fraud Service (basic):
-  - [ ] Rule engine: block transactions > $10,000 without KYC
-  - [ ] Rule: block if > 5 transactions in 1 minute
-  - [ ] Publish `fraud.alert.raised` event
+- [x] User Service:
+  - [x] Profile CRUD
+  - [x] KYC document upload (MongoDB storage)
+  - [x] KYC status flow (PENDING → APPROVED / REJECTED)
+  - [x] Kafka: publish `user.kyc.approved` event
+- [x] Account Service:
+  - [x] Create bank account (IBAN generation)
+  - [x] Get balance
+  - [x] Multi-currency support (USD, EUR, VND)
+  - [x] Consume `user.kyc.approved` → auto-create default account
+- [x] Transaction Service:
+  - [x] P2P transfer (Saga pattern)
+  - [x] Idempotency key handling
+  - [x] Transaction history with pagination
+  - [x] Outbox pattern for Kafka publishing
+  - [x] Fraud check call before committing
+- [x] Fraud Service (basic):
+  - [x] Rule engine: block transactions > $10,000 without KYC
+  - [x] Rule: block if > 5 transactions in 1 minute
+  - [x] Publish `fraud.alert.raised` event
 
 **Done criteria**: Can create an account, top up (mock), and send money to another user.
+- [x] Postman collection at `docs/postman/BankApp-Phase2-CoreBanking.postman_collection.json`
 
 ---
 
@@ -131,6 +132,7 @@
 ## Current Status
 > Update this section as you progress through phases.
 
-**Phase**: 1 — Foundation
-**Started**: 2026-06-18
-**Completed**: Phase 1 core complete 2026-06-18 (OAuth2 Google login deferred to later)
+**Phase**: 3 — Mobile App
+**Phase 1 Completed**: 2026-06-18 (OAuth2 Google login deferred to later)
+**Phase 2 Completed**: 2026-06-19
+**Phase 3 Started**: (not started)

@@ -78,6 +78,7 @@ bank-application/
 3. Use `git commit` with Conventional Commits format
 4. Use subagents for research-heavy tasks to preserve context
 5. See @docs/05-build-phases.md for the current phase roadmap
+6. **After completing a phase or adding new API endpoints**: create or update the Postman collection in `docs/postman/` — see Postman Collections section below
 
 ## Audit & Review Skills (run after building each feature)
 - `/audit-auth` — JWT, bcrypt, refresh tokens, OTP deep audit (after auth service work)
@@ -94,6 +95,23 @@ bank-application/
 - `/db-migration <change>` — Flyway migration + entity update
 - `/mobile-screen <description>` — React Native screen with React Query + UX
 
+## Postman Collections
+
+All Postman collections live in `docs/postman/` and follow Postman Collection v2.1.0 format.
+
+| File | Phase | Coverage |
+|---|---|---|
+| `BankApp-Auth.postman_collection.json` | Phase 1 | Register, Login, MFA, Refresh, Logout |
+| `BankApp-Phase2-CoreBanking.postman_collection.json` | Phase 2 | User profile, KYC, Accounts, Transfers, Fraud edge cases |
+
+**Rules for maintaining collections:**
+- All requests target the gateway at `http://localhost:8080` (not service ports directly), except internal endpoints under `/internal/**` which go direct to the service port
+- Use collection variables for all dynamic values: `base_url`, `access_token`, `my_account_id`, etc.
+- Add a `test` script to auto-save IDs and tokens from responses using `pm.collectionVariables.set()`
+- Add a `prerequest` script to generate idempotency keys where required
+- Group requests in folders by service; include at least one happy-path response and one error response as examples
+- When a new phase or endpoint is added, either update the relevant collection or create `BankApp-Phase{N}-<Name>.postman_collection.json`
+
 ## Important Files
 - Architecture: @docs/00-architecture-overview.md
 - API conventions: @docs/02-api-contracts.md
@@ -101,3 +119,4 @@ bank-application/
 - Mobile UX guide: @docs/04-mobile-ux-guide.md
 - DevOps setup: @docs/06-devops.md
 - Claude Code reference: @reference/claude-code-cheatsheet.md
+- Postman collections: `docs/postman/`
