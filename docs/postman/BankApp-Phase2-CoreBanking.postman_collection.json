@@ -572,7 +572,7 @@
           ]
         },
         {
-          "name": "3.3 List My Transactions",
+          "name": "3.3 List My Transactions (all accounts)",
           "request": {
             "method": "GET",
             "header": [
@@ -584,10 +584,11 @@
               "path": ["api","v1","transactions"],
               "query": [
                 { "key": "page", "value": "0" },
-                { "key": "size", "value": "20" }
+                { "key": "size", "value": "20" },
+                { "key": "accountId", "value": "{{my_account_id}}", "disabled": true, "description": "Optional — enable to filter by a specific account (sender or receiver)" }
               ]
             },
-            "description": "Paginated transaction history for the logged-in user. Sorted by createdAt descending."
+            "description": "Paginated transaction history for the logged-in user across all accounts. Sorted by createdAt descending.\n\nOptional: add ?accountId=<uuid> to filter to a specific account (see 3.4)."
           },
           "response": [
             {
@@ -595,6 +596,40 @@
               "status": "OK", "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"data\": {\n    \"content\": [\n      {\n        \"id\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n        \"amount\": 50.0000,\n        \"currency\": \"USD\",\n        \"type\": \"TRANSFER\",\n        \"status\": \"COMPLETED\",\n        \"description\": \"Dinner split\",\n        \"createdAt\": \"2026-06-19T08:08:00Z\"\n      }\n    ],\n    \"page\": 0,\n    \"size\": 20,\n    \"totalElements\": 1,\n    \"totalPages\": 1,\n    \"last\": true\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:09:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "3.4 List Transactions by Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/api/v1/transactions?accountId={{my_account_id}}&page=0&size=20",
+              "host": ["{{gateway_url}}"],
+              "path": ["api","v1","transactions"],
+              "query": [
+                { "key": "accountId", "value": "{{my_account_id}}", "description": "UUID of the account to filter by. Returns transactions where this account is the sender OR receiver." },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "Filter transaction history to a specific account. Returns transactions where the account appears as either fromAccountId or toAccountId.\n\nUseful when a user has multiple accounts (USD + EUR + VND) and wants the ledger for one account only.\n\nRequires: my_account_id set from step 2.1."
+          },
+          "response": [
+            {
+              "name": "200 OK — filtered by account",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"content\": [\n      {\n        \"id\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n        \"fromAccountId\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"toAccountId\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n        \"amount\": 50.0000,\n        \"currency\": \"USD\",\n        \"type\": \"TRANSFER\",\n        \"status\": \"COMPLETED\",\n        \"description\": \"Dinner split\",\n        \"createdAt\": \"2026-06-19T08:08:00Z\"\n      }\n    ],\n    \"page\": 0,\n    \"size\": 20,\n    \"totalElements\": 1,\n    \"totalPages\": 1,\n    \"last\": true\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:09:00Z\"\n}"
+            },
+            {
+              "name": "200 OK — empty (no transactions for this account)",
+              "status": "OK", "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"content\": [],\n    \"page\": 0,\n    \"size\": 20,\n    \"totalElements\": 0,\n    \"totalPages\": 0,\n    \"last\": true\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-19T08:09:00Z\"\n}"
             }
           ]
         }

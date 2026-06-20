@@ -112,7 +112,6 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 | GET | `/` | Bearer | List my accounts |
 | POST | `/` | Bearer | Create new account |
 | GET | `/{accountId}` | Bearer | Get account details + balance |
-| GET | `/{accountId}/transactions` | Bearer | Transaction history (paginated) |
 
 **Create Account Request:**
 ```json
@@ -127,7 +126,7 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 |--------|------|------|---------|-------------|
 | POST | `/transfer` | Bearer | `X-Idempotency-Key` | P2P transfer |
 | GET | `/{txId}` | Bearer | | Get transaction status |
-| GET | `/` | Bearer | | List transactions (paginated) |
+| GET | `/` | Bearer | | List transactions (paginated); optional `?accountId=uuid` filters to a specific account |
 
 **Transfer Request:**
 ```json

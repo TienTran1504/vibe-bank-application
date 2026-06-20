@@ -51,11 +51,13 @@ public class TransactionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<TransactionResponse>>> listTransactions(
+            @RequestParam(required = false) UUID accountId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         GatewayAuthContext ctx = GatewayAuthContext.current();
         Page<TransactionResponse> result = transactionService.listTransactions(
                 ctx.userId(),
+                accountId,
                 PageRequest.of(page, Math.min(size, 100), Sort.by("createdAt").descending()));
         return ResponseEntity.ok(ApiResponse.ok(PageResponse.of(result)));
     }

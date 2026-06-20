@@ -161,7 +161,10 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    public Page<TransactionResponse> listTransactions(UUID userId, Pageable pageable) {
+    public Page<TransactionResponse> listTransactions(UUID userId, UUID accountId, Pageable pageable) {
+        if (accountId != null) {
+            return transactionRepository.findByUserIdAndAccount(userId, accountId, pageable).map(TransactionResponse::from);
+        }
         return transactionRepository.findByUserId(userId, pageable).map(TransactionResponse::from);
     }
 

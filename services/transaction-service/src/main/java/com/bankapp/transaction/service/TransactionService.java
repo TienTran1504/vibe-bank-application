@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface TransactionService {
     TransferResponse transfer(UUID userId, String idempotencyKey, TransferRequest request);
     TransactionResponse getTransaction(UUID transactionId, UUID userId);
-    Page<TransactionResponse> listTransactions(UUID userId, Pageable pageable);
+    Page<TransactionResponse> listTransactions(UUID userId, UUID accountId, Pageable pageable);
     void handlePaymentCompleted(Map<String, Object> event);
     void handlePaymentFailed(Map<String, Object> event);
 }

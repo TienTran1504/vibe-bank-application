@@ -1,21 +1,52 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { ProfileStackParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { useLogout } from '../../api/auth';
+import { useMyProfile } from '../../api/users';
 import { AppAlert } from '../../components/AppAlert';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { KycStatus } from '@bankapp/shared';
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'ProfileHome'>;
 
+function kycBadgeLabel(status: KycStatus): string {
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+function kycBadgeColor(status: KycStatus): string {
+  switch (status) {
+    case 'APPROVED':  return colors.success;
+    case 'REJECTED':  return colors.danger;
+    case 'SUBMITTED': return colors.primaryLight;
+    default:          return colors.warning;
+  }
+}
+
+function kycBadgeBg(status: KycStatus): string {
+  switch (status) {
+    case 'APPROVED':  return '#e8f7f0';
+    case 'REJECTED':  return '#fff0f0';
+    case 'SUBMITTED': return '#e8f4ff';
+    default:          return '#fff8e7';
+  }
+}
+
 export function ProfileScreen({ navigation }: Props) {
-  const { userId, logout } = useAuthStore();
+  const { logout } = useAuthStore();
+  const { data: profile, isLoading: profileLoading } = useMyProfile();
   const logoutMutation = useLogout();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState('');
+
+  const fullName = profile ? `${profile.firstName} ${profile.lastName}` : null;
+  const initials = profile
+    ? `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase()
+    : 'U';
+  const kycStatus = profile?.kycStatus ?? 'PENDING';
 
   async function handleLogoutConfirm() {
     setShowLogoutConfirm(false);
@@ -45,10 +76,14 @@ export function ProfileScreen({ navigation }: Props) {
         <View style={styles.avatarBlock}>
           <View style={styles.avatarRing}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>U</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
           </View>
-          <Text style={styles.userId}>{userId ? `ID: …${userId.slice(-8)}` : 'Loading…'}</Text>
+          {profileLoading ? (
+            <ActivityIndicator size="small" color={colors.primaryLight} style={{ marginBottom: 6 }} />
+          ) : (
+            <Text style={styles.userName}>{fullName ?? '—'}</Text>
+          )}
           <View style={styles.verifiedBadge}>
             <Text style={styles.verifiedText}>● Active</Text>
           </View>
@@ -57,7 +92,14 @@ export function ProfileScreen({ navigation }: Props) {
         {/* Account section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-          <MenuItem label="KYC Verification" icon="🪪" badge="Pending" onPress={() => navigation.navigate('KYC')} />
+          <MenuItem
+            label="KYC Verification"
+            icon="🪪"
+            badge={kycBadgeLabel(kycStatus)}
+            badgeColor={kycBadgeColor(kycStatus)}
+            badgeBg={kycBadgeBg(kycStatus)}
+            onPress={() => navigation.navigate('KYC')}
+          />
           <MenuItem label="Security Settings" icon="🔒" onPress={() => setShowComingSoon('Security settings')} />
           <MenuItem label="Notification Preferences" icon="🔔" onPress={() => setShowComingSoon('Notification preferences')} />
         </View>
@@ -103,11 +145,15 @@ function MenuItem({
   label,
   icon,
   badge,
+  badgeColor,
+  badgeBg,
   onPress,
 }: {
   label: string;
   icon: string;
   badge?: string;
+  badgeColor?: string;
+  badgeBg?: string;
   onPress: () => void;
 }) {
   return (
@@ -117,7 +163,11 @@ function MenuItem({
         <Text style={menuStyles.label}>{label}</Text>
       </View>
       <View style={menuStyles.right}>
-        {badge && <Text style={menuStyles.badge}>{badge}</Text>}
+        {badge && (
+          <Text style={[menuStyles.badge, badgeColor && { color: badgeColor }, badgeBg && { backgroundColor: badgeBg }]}>
+            {badge}
+          </Text>
+        )}
         <Text style={menuStyles.chevron}>›</Text>
       </View>
     </TouchableOpacity>
@@ -176,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarText: { ...typography.h1, color: colors.white, fontSize: 32 },
-  userId: { ...typography.small, color: colors.textMuted, marginBottom: 6 },
+  userName: { ...typography.h3, color: colors.textPrimary, marginBottom: 6, marginTop: 2 },
   verifiedBadge: {
     backgroundColor: '#e8f7f0',
     paddingHorizontal: 10,
