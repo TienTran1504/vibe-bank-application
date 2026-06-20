@@ -12,6 +12,7 @@ public interface AccountService {
     AccountResponse createAccount(UUID userId, CreateAccountRequest request);
     List<AccountResponse> getMyAccounts(UUID userId);
     AccountResponse getAccount(UUID accountId, UUID userId);
+    AccountResponse lookupByAccountNumber(String accountNumber);
     AccountResponse topUp(UUID accountId, UUID userId, TopUpRequest request);
     void handleKycApproved(KycApprovedEvent event);
     void handlePaymentCreated(Map<String, Object> event);

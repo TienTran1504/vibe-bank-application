@@ -1,0 +1,11 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@bankapp/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": ["src", "App.tsx"]
+}

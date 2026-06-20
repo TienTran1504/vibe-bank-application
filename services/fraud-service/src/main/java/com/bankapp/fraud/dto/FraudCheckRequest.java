@@ -33,4 +33,7 @@ public class FraudCheckRequest {
     private boolean kycApproved;
 
     private String correlationId;
+
+    // USD-equivalent of amount — used for currency-agnostic threshold rules
+    private BigDecimal amountInUsd;
 }

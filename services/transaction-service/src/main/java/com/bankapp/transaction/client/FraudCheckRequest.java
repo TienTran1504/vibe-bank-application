@@ -16,4 +16,5 @@ public class FraudCheckRequest {
     private String toAccountId;
     private boolean kycApproved;
     private String correlationId;
+    private BigDecimal amountInUsd;
 }

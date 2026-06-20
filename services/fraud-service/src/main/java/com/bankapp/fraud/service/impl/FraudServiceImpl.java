@@ -28,8 +28,9 @@ public class FraudServiceImpl implements FraudService {
 
     @Override
     public FraudCheckResponse check(FraudCheckRequest req) {
-        // Rule 1: Block transactions > $10,000 without approved KYC
-        if (req.getAmount().compareTo(HIGH_VALUE_THRESHOLD) > 0 && !req.isKycApproved()) {
+        // Rule 1: Block transactions > $10,000 (in USD equivalent) without approved KYC
+        BigDecimal checkAmount = req.getAmountInUsd() != null ? req.getAmountInUsd() : req.getAmount();
+        if (checkAmount.compareTo(HIGH_VALUE_THRESHOLD) > 0 && !req.isKycApproved()) {
             return blocked(req, "KYC_REQUIRED",
                     "Transactions above $10,000 require approved KYC");
         }

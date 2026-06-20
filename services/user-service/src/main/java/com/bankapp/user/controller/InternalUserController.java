@@ -23,4 +23,16 @@ public class InternalUserController {
         String status = userService.getKycStatusRaw(userId);
         return ResponseEntity.ok(Map.of("userId", userId.toString(), "status", status));
     }
+
+    @GetMapping("/{userId}/name")
+    public ResponseEntity<Map<String, String>> getUserName(@PathVariable UUID userId) {
+        try {
+            var profile = userService.getProfile(userId);
+            String fullName = (profile.getFirstName() + " " + profile.getLastName()).trim();
+            return ResponseEntity.ok(Map.of("userId", userId.toString(), "fullName", fullName));
+        } catch (Exception e) {
+            // No profile yet — return empty name so callers can fall back gracefully
+            return ResponseEntity.ok(Map.of("userId", userId.toString(), "fullName", ""));
+        }
+    }
 }

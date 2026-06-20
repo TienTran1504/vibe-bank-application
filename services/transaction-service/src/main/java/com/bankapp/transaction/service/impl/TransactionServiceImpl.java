@@ -1,6 +1,7 @@
 package com.bankapp.transaction.service.impl;
 
 import com.bankapp.base.exception.BusinessException;
+import com.bankapp.transaction.client.AccountClient;
 import com.bankapp.transaction.client.FraudCheckRequest;
 import com.bankapp.transaction.client.FraudCheckResponse;
 import com.bankapp.transaction.client.FraudClient;
@@ -12,6 +13,7 @@ import com.bankapp.transaction.domain.repository.TransactionRepository;
 import com.bankapp.transaction.dto.TransactionResponse;
 import com.bankapp.transaction.dto.TransferRequest;
 import com.bankapp.transaction.dto.TransferResponse;
+import com.bankapp.transaction.service.ExchangeRateService;
 import com.bankapp.transaction.service.TransactionService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,8 +26,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -42,6 +47,8 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionOutboxRepository outboxRepository;
     private final FraudClient fraudClient;
     private final UserKycClient userKycClient;
+    private final AccountClient accountClient;
+    private final ExchangeRateService exchangeRateService;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
 
@@ -57,15 +64,35 @@ public class TransactionServiceImpl implements TransactionService {
             return buildTransferResponse(existing);
         }
 
-        // 2. Fraud check
+        // 2. Derive currencies from accounts
+        String fromCurrency = accountClient.getAccountCurrency(req.getFromAccountId());
+        String toCurrency   = accountClient.getAccountCurrency(req.getToAccountId());
+
+        // 3. FX conversion (if cross-currency)
+        BigDecimal amount = req.getAmount();
+        BigDecimal feeAmount      = BigDecimal.ZERO;
+        BigDecimal convertedAmount = amount;
+        BigDecimal exchangeRate   = BigDecimal.ONE;
+
+        if (exchangeRateService.isCrossCurrency(fromCurrency, toCurrency)) {
+            exchangeRate    = exchangeRateService.getRate(fromCurrency, toCurrency);
+            feeAmount       = amount.multiply(exchangeRateService.getFeeRate()).setScale(4, RoundingMode.HALF_UP);
+            convertedAmount = amount.multiply(exchangeRate).setScale(4, RoundingMode.HALF_UP);
+            log.info("FX transfer: {} {} → {} {} (rate={}, fee={})",
+                    amount, fromCurrency, convertedAmount, toCurrency, exchangeRate, feeAmount);
+        }
+
+        // 4. Fraud check — always pass USD-equivalent so rules are currency-agnostic
         boolean kycApproved = userKycClient.isKycApproved(userId.toString());
-        UUID correlationId = UUID.randomUUID();
+        UUID correlationId  = UUID.randomUUID();
+        BigDecimal amountInUsd = toUsdEquivalent(amount, fromCurrency);
 
         FraudCheckResponse fraudResult = fraudClient.check(FraudCheckRequest.builder()
                 .userId(userId.toString())
                 .transactionId(correlationId.toString())
-                .amount(req.getAmount())
-                .currency(req.getCurrency())
+                .amount(amount)
+                .currency(fromCurrency)
+                .amountInUsd(amountInUsd)
                 .fromAccountId(req.getFromAccountId().toString())
                 .toAccountId(req.getToAccountId().toString())
                 .kycApproved(kycApproved)
@@ -77,14 +104,18 @@ public class TransactionServiceImpl implements TransactionService {
                     "Transaction blocked: " + fraudResult.getReason(), HttpStatus.FORBIDDEN);
         }
 
-        // 3. Create transaction — let JPA generate the ID, capture the returned entity
+        // 5. Persist transaction
         Transaction tx = Transaction.builder()
                 .idempotencyKey(idempotencyKey)
                 .fromAccountId(req.getFromAccountId())
                 .toAccountId(req.getToAccountId())
                 .userId(userId)
-                .amount(req.getAmount())
-                .currency(req.getCurrency())
+                .amount(amount)
+                .currency(fromCurrency)
+                .toCurrency(toCurrency.equals(fromCurrency) ? null : toCurrency)
+                .exchangeRate(exchangeRateService.isCrossCurrency(fromCurrency, toCurrency) ? exchangeRate : null)
+                .feeAmount(feeAmount.compareTo(BigDecimal.ZERO) > 0 ? feeAmount : null)
+                .convertedAmount(exchangeRateService.isCrossCurrency(fromCurrency, toCurrency) ? convertedAmount : null)
                 .type(Transaction.TransactionType.TRANSFER)
                 .status(Transaction.TransactionStatus.PENDING)
                 .description(req.getDescription())
@@ -93,23 +124,26 @@ public class TransactionServiceImpl implements TransactionService {
         Transaction savedTx = transactionRepository.save(tx);
         String transactionId = savedTx.getId().toString();
 
-        // 4. Create outbox entry in the same DB transaction
-        Map<String, Object> payload = Map.of(
-                "eventId", UUID.randomUUID().toString(),
-                "transactionId", transactionId,
-                "fromAccountId", req.getFromAccountId().toString(),
-                "toAccountId", req.getToAccountId().toString(),
-                "amount", req.getAmount().toPlainString(),
-                "currency", req.getCurrency(),
-                "correlationId", correlationId.toString()
-        );
+        // 6. Outbox — carry debit/credit amounts so Account Service can handle FX
+        BigDecimal debitAmount = amount.add(feeAmount);  // sender pays amount + fee
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("eventId", UUID.randomUUID().toString());
+        payload.put("transactionId", transactionId);
+        payload.put("fromAccountId", req.getFromAccountId().toString());
+        payload.put("toAccountId", req.getToAccountId().toString());
+        payload.put("amount", amount.toPlainString());
+        payload.put("debitAmount", debitAmount.toPlainString());
+        payload.put("creditAmount", convertedAmount.toPlainString());
+        payload.put("currency", fromCurrency);
+        payload.put("correlationId", correlationId.toString());
+
         outboxRepository.save(TransactionOutbox.builder()
                 .topic(TOPIC_PAYMENT_CREATED)
                 .messageKey(transactionId)
                 .payload(toJson(payload))
                 .build());
 
-        // 5. Cache idempotency key → the actual DB-generated ID
+        // 7. Cache idempotency key
         redis.opsForValue().set(IDEMPOTENCY_KEY_PREFIX + idempotencyKey, transactionId, IDEMPOTENCY_TTL);
 
         log.info("Created transaction txId={} userId={}", transactionId, userId);
@@ -157,6 +191,12 @@ public class TransactionServiceImpl implements TransactionService {
             transactionRepository.save(tx);
             log.info("Transaction FAILED txId={} reason={}", txId, errorCode);
         });
+    }
+
+    private BigDecimal toUsdEquivalent(BigDecimal amount, String currency) {
+        if ("USD".equals(currency)) return amount;
+        BigDecimal rate = exchangeRateService.getRate(currency, "USD");
+        return amount.multiply(rate).setScale(4, RoundingMode.HALF_UP);
     }
 
     private TransferResponse buildTransferResponse(Transaction tx) {

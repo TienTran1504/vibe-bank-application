@@ -63,24 +63,24 @@ Bottom Tab Navigator
 ├── Home (house icon)
 │   ├── Dashboard Screen
 │   └── Account Detail Screen
-├── Send (paper-plane icon)
-│   ├── Send To Screen (search recipient)
+├── Transfer (paper-plane icon)          ← renamed from "Send"
+│   ├── Transfer To Screen (IBAN lookup)
 │   ├── Enter Amount Screen
 │   ├── Review Screen
 │   └── Confirmation Screen
-├── Activity (list icon)
-│   ├── Transaction List Screen
+├── Activity (receipt icon)
+│   ├── Transaction List Screen          ← 5 recent on load, "Load more" fetches all
 │   └── Transaction Detail Screen
-├── Cards (credit-card icon)
-│   ├── Cards List Screen
-│   ├── Card Detail Screen
-│   └── Virtual Card Screen
+├── Cards (card icon)
+│   └── Cards List Screen
 └── Profile (person icon)
     ├── Profile Screen
     ├── KYC Screen
     ├── Security Settings Screen
     └── Notification Settings Screen
 ```
+
+**Back navigation**: Activity, Cards, Profile, and all Transfer screens show a `← Home` button (arrow size 26, `typography.body`) that navigates to the HomeTab. This is consistent across all non-home screens.
 
 ---
 
@@ -89,63 +89,75 @@ Bottom Tab Navigator
 ### Dashboard (Home)
 ```
 ┌──────────────────────────┐
-│ 👋 Good morning, Tien    │
-│ ─────────────────────── │
+│ Good day 👋  Welcome back│
+│                    [🔔]  │
 │ ┌──────────────────────┐ │
-│ │   Total Balance      │ │
-│ │   $12,450.00  [USD▼] │ │
-│ │                      │ │
-│ │  [Send] [Receive]    │ │
-│ │  [Top Up] [More]     │ │
+│ │ BankApp         ●●   │ │
+│ │ Total Balance        │ │
+│ │ $195,390.06          │ │
+│ │ [USD]                │ │
+│ │ •••• •••• •••• ••••  │ │
 │ └──────────────────────┘ │
+│                          │
+│ [Transfer][Deposit]      │
+│ [New Acc ][Cards  ]      │
 │                          │
 │ My Accounts              │
 │ ┌──────────────────────┐ │
-│ │ 💳 Checking  $8,200  │ │
-│ └──────────────────────┘ │
-│ ┌──────────────────────┐ │
-│ │ 💰 Savings   $4,250  │ │
+│ │ AVAILABLE BALANCE    │ │
+│ │ $1,550.00            │ │
+│ │ GB60BANK…  [copy]    │ │
+│ │ •••• 7880   Checking │ │
 │ └──────────────────────┘ │
 │                          │
-│ Recent Activity          │
-│ [skeleton / transactions]│
+│ Recent Activity  See all │
+│ [last 5 transactions]    │
 └──────────────────────────┘
 ```
 
 **Key rules:**
-- Balance card uses gradient background (primary → primaryLight)
-- Amounts always formatted: `$1,234.56` (never `$1234.5`)
-- Quick action buttons in 2x2 grid below balance
-- Recent transactions: last 5, show avatar + name + amount + date
-- Positive amounts: `colors.success` green
-- Negative amounts: `colors.danger` red
+- Total balance sums all account balances converted to USD (no fee)
+- Non-USD account cards show `≈ $X.XX USD` below the main balance
+- Account cards show full IBAN with a copy-to-clipboard icon
+- Quick actions: 4 buttons (Transfer, Deposit, New Acc, Cards) using custom PNG icons, all `colors.primaryBg` background, 64×64px circles
+- All amounts formatted with commas: `$1,234.56` (never `$1234.5`)
+- Recent transactions: last 5 only — "See all" navigates to Activity tab
+- Positive amounts: `colors.success` green; Negative: `colors.danger` red
 
-### Send Money Flow (3 screens)
+### Transfer Flow (3 screens, renamed from "Send")
 
 **Screen 1 — Recipient**
-- Search bar (by email, name, or account number)
-- Recent recipients as avatar chips
-- Results list with avatar, name, masked account
+- IBAN input field with "Verify" chip button
+- Verified account shown with account type, currency, checkmark
+- Safety tip box (gradient)
+- Title: "Transfer money to"
 
 **Screen 2 — Amount**
-- Large numeric keypad
-- Selected recipient shown at top
-- Currency selector (if multi-currency)
-- "Add note" optional field
-- Running balance check (grey if insufficient)
+- Horizontal account selector (shows balance with commas, currency)
+- Large amount input with currency symbol
+- FX preview box (visible when sender ≠ recipient currency):
+  - Recipient gets (est.) — green
+  - Conversion fee (1.5%) — amber
+  - Total deducted — primary
+  - Rate: e.g. `1 USD = €0.8700 EUR` (2–4 decimal places, never rounded to whole)
+- Insufficient funds check includes the 1.5% fee
 
 **Screen 3 — Review & Confirm**
-- Summary card: From → To, Amount, Fee, Total
-- "Send $X.XX" CTA button (primary blue, full width)
-- Tap → biometric prompt appears
-- On biometric success → loading state → success/failure screen
+- Hero amount card showing sending amount + converted amount
+- Transfer details: From, To, Note
+- FX breakdown when cross-currency: rate, fee (amber), total deducted (red), recipient gets (green)
+- Biometric hint below details
+- Cancel + Send button row (Send shows total debit amount)
+- Tap → biometric prompt → API call → Confirmation screen
 
-### Transaction List
-- FlatList with pull-to-refresh
-- Section headers by date (Today, Yesterday, This Week, etc.)
-- Row: [Avatar/Icon] [Name + description] [Amount] [Status badge]
-- Filter chips: All / Sent / Received / Pending
-- Load more on scroll (infinite scroll)
+### Transaction List (Activity)
+- Shows 5 most recent transactions on initial load
+- "Load more" button fetches all remaining in one request (size=500)
+- Filter chips: All / Completed / Pending / Failed
+- Pull-to-refresh resets to 5 most recent
+- Row icons: custom PNG for outgoing (send-arrow), incoming (receive-arrow), category emoji for food/coffee/shopping
+- All icon backgrounds: transparent
+- 120px bottom padding so last items clear the floating nav bar
 
 ---
 
@@ -165,14 +177,15 @@ Bottom Tab Navigator
 
 ### Account Card
 ```typescript
-// Gradient card with account info
+// Gradient card — shows full IBAN with copy button, USD equiv for non-USD accounts
 <AccountCard
   accountType="Checking"
   balance={8200.00}
   currency="USD"
-  lastFour="4321"       // last 4 of account number
+  accountNumber="GB60BANK39305741710101"  // full IBAN displayed + copy icon
   onPress={() => navigate('AccountDetail')}
 />
+// Non-USD accounts additionally show: ≈ $X.XX USD (smaller, 50% opacity)
 ```
 
 ### Transaction Row

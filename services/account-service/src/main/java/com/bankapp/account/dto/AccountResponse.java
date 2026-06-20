@@ -14,6 +14,7 @@ public class AccountResponse {
 
     private UUID id;
     private UUID userId;
+    private String holderName;
     private String accountNumber;
     private String accountType;
     private String currency;

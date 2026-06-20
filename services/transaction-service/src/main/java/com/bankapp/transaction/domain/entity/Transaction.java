@@ -69,6 +69,18 @@ public class Transaction {
     @Column(name = "correlation_id", nullable = false)
     private UUID correlationId;
 
+    @Column(name = "to_currency", length = 3)
+    private String toCurrency;
+
+    @Column(name = "exchange_rate", precision = 19, scale = 8)
+    private java.math.BigDecimal exchangeRate;
+
+    @Column(name = "fee_amount", precision = 19, scale = 4)
+    private java.math.BigDecimal feeAmount;
+
+    @Column(name = "converted_amount", precision = 19, scale = 4)
+    private java.math.BigDecimal convertedAmount;
+
     @Column(name = "error_code", length = 100)
     private String errorCode;
 

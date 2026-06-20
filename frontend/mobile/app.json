@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "BankApp",
+    "slug": "bankapp-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.bankapp.mobile"
+    },
+    "android": {
+      "package": "com.bankapp.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#003087"
+      }
+    },
+    "plugins": [
+      "expo-local-authentication",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#003087"
+        }
+      ]
+    ]
+  }
+}

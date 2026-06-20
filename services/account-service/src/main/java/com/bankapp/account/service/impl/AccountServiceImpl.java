@@ -15,6 +15,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestTemplate;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +36,11 @@ public class AccountServiceImpl implements AccountService {
 
     private final BankAccountRepository accountRepository;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final RestTemplate restTemplate;
     private final Random random = new Random();
+
+    @Value("${services.user.internal-url:http://user-service:8081}")
+    private String userServiceUrl;
 
     @Override
     @Transactional
@@ -44,20 +51,61 @@ public class AccountServiceImpl implements AccountService {
                 .accountType(BankAccount.AccountType.valueOf(req.getAccountType()))
                 .currency(req.getCurrency())
                 .build();
-        return AccountResponse.from(accountRepository.save(account));
+        BankAccount saved = accountRepository.save(account);
+        return withHolderName(saved);
     }
 
     @Override
     public List<AccountResponse> getMyAccounts(UUID userId) {
+        String holderName = fetchHolderName(userId);
         return accountRepository.findByUserId(userId).stream()
-                .map(AccountResponse::from)
+                .map(a -> withHolderName(a, holderName))
                 .toList();
     }
 
     @Override
     public AccountResponse getAccount(UUID accountId, UUID userId) {
         BankAccount account = findAccountOwned(accountId, userId);
-        return AccountResponse.from(account);
+        return withHolderName(account);
+    }
+
+    @Override
+    public AccountResponse lookupByAccountNumber(String accountNumber) {
+        BankAccount account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new BusinessException("NOT_FOUND", "Account not found", HttpStatus.NOT_FOUND));
+        return withHolderName(account);
+    }
+
+    private AccountResponse withHolderName(BankAccount account) {
+        return withHolderName(account, fetchHolderName(account.getUserId()));
+    }
+
+    private AccountResponse withHolderName(BankAccount account, String holderName) {
+        return AccountResponse.builder()
+                .id(account.getId())
+                .userId(account.getUserId())
+                .holderName(holderName)
+                .accountNumber(account.getAccountNumber())
+                .accountType(account.getAccountType().name())
+                .currency(account.getCurrency())
+                .balance(account.getBalance())
+                .availableBalance(account.getAvailableBalance())
+                .status(account.getStatus().name())
+                .createdAt(account.getCreatedAt())
+                .updatedAt(account.getUpdatedAt())
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private String fetchHolderName(UUID userId) {
+        try {
+            String url = userServiceUrl + "/internal/v1/users/" + userId + "/name";
+            Map<String, String> response = restTemplate.getForObject(url, Map.class);
+            return response != null ? response.getOrDefault("fullName", "") : "";
+        } catch (Exception e) {
+            log.warn("Could not fetch holder name for userId={}: {}", userId, e.getMessage());
+            return "";
+        }
     }
 
     @Override
@@ -95,12 +143,15 @@ public class AccountServiceImpl implements AccountService {
         String transactionId = Objects.toString(event.get("transactionId"));
         UUID fromAccountId = UUID.fromString(Objects.toString(event.get("fromAccountId")));
         UUID toAccountId = UUID.fromString(Objects.toString(event.get("toAccountId")));
-        BigDecimal amount = new BigDecimal(Objects.toString(event.get("amount")));
 
-        BankAccount from = accountRepository.findByIdForUpdate(fromAccountId)
-                .orElse(null);
-        BankAccount to = accountRepository.findByIdForUpdate(toAccountId)
-                .orElse(null);
+        // debitAmount = amount + fee (what sender loses); creditAmount = converted amount (what receiver gains)
+        BigDecimal debitAmount  = new BigDecimal(Objects.toString(
+                event.getOrDefault("debitAmount", event.get("amount"))));
+        BigDecimal creditAmount = new BigDecimal(Objects.toString(
+                event.getOrDefault("creditAmount", event.get("amount"))));
+
+        BankAccount from = accountRepository.findByIdForUpdate(fromAccountId).orElse(null);
+        BankAccount to   = accountRepository.findByIdForUpdate(toAccountId).orElse(null);
 
         if (from == null || to == null) {
             publishPaymentFailed(transactionId, "ACCOUNT_NOT_FOUND", Objects.toString(event.get("correlationId")));
@@ -110,15 +161,15 @@ public class AccountServiceImpl implements AccountService {
             publishPaymentFailed(transactionId, "ACCOUNT_FROZEN", Objects.toString(event.get("correlationId")));
             return;
         }
-        if (from.getAvailableBalance().compareTo(amount) < 0) {
+        if (from.getAvailableBalance().compareTo(debitAmount) < 0) {
             publishPaymentFailed(transactionId, "INSUFFICIENT_FUNDS", Objects.toString(event.get("correlationId")));
             return;
         }
 
-        from.setBalance(from.getBalance().subtract(amount));
-        from.setAvailableBalance(from.getAvailableBalance().subtract(amount));
-        to.setBalance(to.getBalance().add(amount));
-        to.setAvailableBalance(to.getAvailableBalance().add(amount));
+        from.setBalance(from.getBalance().subtract(debitAmount));
+        from.setAvailableBalance(from.getAvailableBalance().subtract(debitAmount));
+        to.setBalance(to.getBalance().add(creditAmount));
+        to.setAvailableBalance(to.getAvailableBalance().add(creditAmount));
         accountRepository.save(from);
         accountRepository.save(to);
 

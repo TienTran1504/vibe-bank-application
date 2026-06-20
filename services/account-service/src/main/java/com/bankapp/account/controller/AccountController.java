@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -39,6 +40,12 @@ public class AccountController {
     public ResponseEntity<ApiResponse<List<AccountResponse>>> getMyAccounts() {
         GatewayAuthContext ctx = GatewayAuthContext.current();
         return ResponseEntity.ok(ApiResponse.ok(accountService.getMyAccounts(ctx.userId())));
+    }
+
+    @GetMapping("/lookup")
+    public ResponseEntity<ApiResponse<AccountResponse>> lookupByAccountNumber(
+            @RequestParam String accountNumber) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.lookupByAccountNumber(accountNumber)));
     }
 
     @GetMapping("/{accountId}")

@@ -17,6 +17,10 @@ public class TransactionResponse {
     private UUID toAccountId;
     private BigDecimal amount;
     private String currency;
+    private String toCurrency;
+    private BigDecimal exchangeRate;
+    private BigDecimal feeAmount;
+    private BigDecimal convertedAmount;
     private String type;
     private String status;
     private String description;
@@ -31,6 +35,10 @@ public class TransactionResponse {
                 .toAccountId(t.getToAccountId())
                 .amount(t.getAmount())
                 .currency(t.getCurrency())
+                .toCurrency(t.getToCurrency())
+                .exchangeRate(t.getExchangeRate())
+                .feeAmount(t.getFeeAmount())
+                .convertedAmount(t.getConvertedAmount())
                 .type(t.getType().name())
                 .status(t.getStatus().name())
                 .description(t.getDescription())

@@ -39,6 +39,9 @@ fraud-service:
 user-service:
   url: ${USER_SERVICE_URL:http://localhost:8081}
 
+account-service:
+  url: ${ACCOUNT_SERVICE_URL:http://localhost:8082}
+
 management:
   endpoints:
     web:
@@ -71,3 +74,6 @@ fraud-service:
 
 user-service:
   url: http://user-service:8081
+
+account-service:
+  url: http://account-service:8082
