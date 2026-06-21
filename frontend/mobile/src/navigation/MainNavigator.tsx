@@ -24,6 +24,9 @@ import { TransactionDetailScreen} from '../screens/activity/TransactionDetailScr
 import { CardsScreen }            from '../screens/cards/CardsScreen';
 import { ProfileScreen }          from '../screens/profile/ProfileScreen';
 import { KYCScreen }              from '../screens/profile/KYCScreen';
+import { WalletScreen }           from '../screens/home/WalletScreen';
+import { SpendScreen }            from '../screens/profile/SpendScreen';
+import { NotificationsScreen }    from '../screens/home/NotificationsScreen';
 
 const Tab         = createBottomTabNavigator<MainTabParamList>();
 const HomeStack   = createNativeStackNavigator<HomeStackParamList>();
@@ -78,6 +81,8 @@ function HomeNavigator() {
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
       <HomeStack.Screen name="Dashboard"     component={DashboardScreen} />
       <HomeStack.Screen name="AccountDetail" component={AccountDetailScreen} />
+      <HomeStack.Screen name="Wallet"        component={WalletScreen} />
+      <HomeStack.Screen name="Notifications" component={NotificationsScreen} />
     </HomeStack.Navigator>
   );
 }
@@ -111,6 +116,7 @@ function ProfileNavigator() {
     <ProfStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfStack.Screen name="ProfileHome" component={ProfileScreen} />
       <ProfStack.Screen name="KYC"         component={KYCScreen} />
+      <ProfStack.Screen name="Spend"       component={SpendScreen} />
     </ProfStack.Navigator>
   );
 }

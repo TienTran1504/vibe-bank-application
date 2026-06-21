@@ -133,9 +133,10 @@ Import `docs/postman/` collections into Postman to test all endpoints.
 |---|---|---|
 | 1 | Foundation: monorepo, Docker, Gateway, Auth Service | ✅ Complete |
 | 2 | Core Banking: User, Account, Transaction, Fraud services | ✅ Complete |
-| 3 | Mobile App: all screens, biometric auth, full flow | 🔲 Next |
-| 4 | Supporting: Cards, Wallet, Notifications, Analytics | 🔲 |
-| 5 | Admin dashboard, Kubernetes, CI/CD, load testing | 🔲 |
+| 3 | Mobile App: all screens, biometric auth, full flow | ✅ Complete |
+| 4 | Supporting: Cards, Wallet, Notifications, Analytics | ✅ Complete |
+| 5 | Card Payments: card→merchant flow enforcing freeze + daily limit | 🔲 Next |
+| 6 | Admin dashboard, Kubernetes, CI/CD, load testing | 🔲 |
 
 See [docs/05-build-phases.md](docs/05-build-phases.md) for the full checklist.
 

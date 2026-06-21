@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Platform, Image,
 } from 'react-native';
-import { DepositSheet } from '../../components/DepositSheet';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +9,7 @@ import { HomeStackParamList } from '../../types/navigation';
 import { useAccounts } from '../../api/accounts';
 import { getExchangeRate } from '@bankapp/shared';
 import { useTransactions } from '../../api/transactions';
+import { useUnreadCount } from '../../api/notifications';
 import { AccountCard } from '../../components/AccountCard';
 import { TransactionRow } from '../../components/TransactionRow';
 import { AccountCardSkeleton, TransactionSkeleton } from '../../components/SkeletonLoader';
@@ -27,26 +27,26 @@ const CARDS_ICON = require('../../../assets/icons/cards.png');
 
 const QUICK_ACTIONS = [
   { label: 'Transfer', img: SEND_ICON, icon: null, tab: 'SendTab', action: null },
-  { label: 'Deposit', img: DEPOSIT_ICON, icon: null, tab: null, action: 'deposit' },
+  { label: 'Wallet', img: DEPOSIT_ICON, icon: null, tab: null, action: 'wallet' },
   { label: 'New Acc', img: NEW_ACCOUNT_ICON, icon: null, tab: null, action: 'newAcc' },
   { label: 'Cards', img: CARDS_ICON, icon: null, tab: 'CardsTab', action: null },
 ];
 
 export function DashboardScreen({ navigation }: Props) {
   const [showCreateSheet, setShowCreateSheet] = useState(false);
-  const [showDepositSheet, setShowDepositSheet] = useState(false);
 
   function handleQuickAction(tab: string | null, action: string | null) {
     if (tab) {
       navigation.getParent()?.navigate(tab);
-    } else if (action === 'deposit') {
-      setShowDepositSheet(true);
+    } else if (action === 'wallet') {
+      navigation.navigate('Wallet');
     } else if (action === 'newAcc') {
       setShowCreateSheet(true);
     }
   }
   const { data: accounts, isLoading: accountsLoading, refetch: refetchAccounts } = useAccounts();
   const { data: txPage, isLoading: txLoading, refetch: refetchTx } = useTransactions(0, 5);
+  const { data: unreadCount = 0 } = useUnreadCount();
 
   // Sum all account balances converted to USD (no fee — display only)
   const totalBalanceUsd = accounts?.reduce((sum, a) => {
@@ -72,8 +72,17 @@ export function DashboardScreen({ navigation }: Props) {
           <Text style={styles.greeting}>Good day 👋</Text>
           <Text style={styles.subGreeting}>Welcome back</Text>
         </View>
-        <TouchableOpacity style={styles.notifBtn}>
+        <TouchableOpacity
+          style={styles.notifBtn}
+          onPress={() => navigation.navigate('Notifications')}
+          activeOpacity={0.75}
+        >
           <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
+          {unreadCount > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -192,11 +201,6 @@ export function DashboardScreen({ navigation }: Props) {
         visible={showCreateSheet}
         onClose={() => setShowCreateSheet(false)}
       />
-
-      <DepositSheet
-        visible={showDepositSheet}
-        onClose={() => setShowDepositSheet(false)}
-      />
     </ScrollView>
   );
 }
@@ -270,6 +274,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.white,
+    lineHeight: 12,
   },
 
   // Balance Card

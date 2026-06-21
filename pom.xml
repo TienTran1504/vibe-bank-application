@@ -20,6 +20,10 @@
         <module>services/account-service</module>
         <module>services/fraud-service</module>
         <module>services/transaction-service</module>
+        <module>services/card-service</module>
+        <module>services/wallet-service</module>
+        <module>services/notification-service</module>
+        <module>services/analytics-service</module>
     </modules>
 
     <properties>

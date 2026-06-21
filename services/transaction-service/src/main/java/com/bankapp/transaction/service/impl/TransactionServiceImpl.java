@@ -55,6 +55,12 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransferResponse transfer(UUID userId, String idempotencyKey, TransferRequest req) {
+        // 0. Reject self-transfer — cannot send to the same account you send from
+        if (req.getFromAccountId().equals(req.getToAccountId())) {
+            throw new BusinessException("VALIDATION_FAILED",
+                    "Cannot transfer to the same account you are sending from", HttpStatus.BAD_REQUEST);
+        }
+
         // 1. Idempotency check
         String cachedId = redis.opsForValue().get(IDEMPOTENCY_KEY_PREFIX + idempotencyKey);
         if (cachedId != null) {

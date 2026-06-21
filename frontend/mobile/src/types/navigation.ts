@@ -8,6 +8,8 @@ export type AuthStackParamList = {
 export type HomeStackParamList = {
   Dashboard: undefined;
   AccountDetail: { accountId: string };
+  Wallet: undefined;
+  Notifications: undefined;
 };
 
 export type SendStackParamList = {
@@ -53,6 +55,7 @@ export type CardsStackParamList = {
 export type ProfileStackParamList = {
   ProfileHome: undefined;
   KYC: undefined;
+  Spend: undefined;
 };
 
 export type MainTabParamList = {

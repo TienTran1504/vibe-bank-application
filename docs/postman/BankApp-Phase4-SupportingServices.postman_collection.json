@@ -1,0 +1,365 @@
+{
+  "info": {
+    "name": "BankApp — Phase 4 Supporting Services",
+    "_postman_id": "phase4-supporting-services",
+    "description": "Card Service, Wallet Service, Notification Service, Analytics Service.\nAll requests go through the gateway at http://localhost:8080.\nSet access_token from Phase 2 login before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",        "value": "http://localhost:8080" },
+    { "key": "access_token",    "value": "" },
+    { "key": "my_card_id",      "value": "" },
+    { "key": "my_wallet_id",    "value": "" },
+    { "key": "my_account_id",   "value": "" },
+    { "key": "notification_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Cards",
+      "item": [
+        {
+          "name": "1.1 List My Cards",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/cards", "host": ["{{base_url}}"], "path": ["api","v1","cards"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.data && res.data.length > 0) {",
+                  "  pm.collectionVariables.set('my_card_id', res.data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "1.2 Create Virtual Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{my_account_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/virtual", "host": ["{{base_url}}"], "path": ["api","v1","cards","virtual"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.data && res.data.id) {",
+                  "  pm.collectionVariables.set('my_card_id', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "1.3 Request Physical Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{my_account_id}}\",\n  \"deliveryAddress\": \"123 Main St, Hanoi, Vietnam\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/physical", "host": ["{{base_url}}"], "path": ["api","v1","cards","physical"] }
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Freeze Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"freeze\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/freeze", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","freeze"] }
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Unfreeze Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"freeze\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/freeze", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","freeze"] }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Set Spending Limit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dailyLimit\": \"500.00\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/limits", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","limits"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Wallet",
+      "item": [
+        {
+          "name": "2.1 Get My Wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/wallets/me", "host": ["{{base_url}}"], "path": ["api","v1","wallets","me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.data && res.data.id) {",
+                  "  pm.collectionVariables.set('my_wallet_id', res.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2.2 Top Up Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"100.00\",\n  \"paymentMethodToken\": \"mock-card-token-4242\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/wallets/top-up", "host": ["{{base_url}}"], "path": ["api","v1","wallets","top-up"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Withdraw from Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"25.00\",\n  \"toAccountId\": \"{{my_account_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/wallets/withdraw", "host": ["{{base_url}}"], "path": ["api","v1","wallets","withdraw"] }
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Wallet Transaction History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/wallets/transactions?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","wallets","transactions"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 Withdraw — Insufficient Funds (error)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"999999.00\",\n  \"toAccountId\": \"{{my_account_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/wallets/withdraw", "host": ["{{base_url}}"], "path": ["api","v1","wallets","withdraw"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Notifications",
+      "item": [
+        {
+          "name": "3.1 List My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","notifications"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.data && res.data.content && res.data.content.length > 0) {",
+                  "  pm.collectionVariables.set('notification_id', res.data.content[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3.2 Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/notifications/unread-count", "host": ["{{base_url}}"], "path": ["api","v1","notifications","unread-count"] }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/notifications/{{notification_id}}/read", "host": ["{{base_url}}"], "path": ["api","v1","notifications","{{notification_id}}","read"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Analytics",
+      "item": [
+        {
+          "name": "4.1 Current Month Spend Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/analytics/spend/current-month", "host": ["{{base_url}}"], "path": ["api","v1","analytics","spend","current-month"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 All Monthly Spend History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/v1/analytics/spend", "host": ["{{base_url}}"], "path": ["api","v1","analytics","spend"] }
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 Audit Logs — All (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/audit-logs?page=0&size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","analytics","audit-logs"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "50" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 Audit Logs — By Actor (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/audit-logs?actorId={{my_account_id}}&page=0&size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","analytics","audit-logs"],
+              "query": [
+                { "key": "actorId", "value": "{{my_account_id}}" },
+                { "key": "page",    "value": "0" },
+                { "key": "size",    "value": "50" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

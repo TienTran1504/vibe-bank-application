@@ -100,6 +100,7 @@ export function ProfileScreen({ navigation }: Props) {
             badgeBg={kycBadgeBg(kycStatus)}
             onPress={() => navigation.navigate('KYC')}
           />
+          <MenuItem label="Spend Analytics" icon="📊" onPress={() => navigation.navigate('Spend')} />
           <MenuItem label="Security Settings" icon="🔒" onPress={() => setShowComingSoon('Security settings')} />
           <MenuItem label="Notification Preferences" icon="🔔" onPress={() => setShowComingSoon('Notification preferences')} />
         </View>
@@ -164,7 +165,7 @@ function MenuItem({
       </View>
       <View style={menuStyles.right}>
         {badge && (
-          <Text style={[menuStyles.badge, badgeColor && { color: badgeColor }, badgeBg && { backgroundColor: badgeBg }]}>
+          <Text style={[menuStyles.badge, badgeColor ? { color: badgeColor } : undefined, badgeBg ? { backgroundColor: badgeBg } : undefined]}>
             {badge}
           </Text>
         )}

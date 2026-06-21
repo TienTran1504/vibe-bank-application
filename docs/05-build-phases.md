@@ -89,7 +89,7 @@
   - [x] Custom icons: PNG send-arrow (outgoing), receive-arrow (incoming), category emoji
 - [x] Cards screen:
   - [x] Virtual card display (masked number)
-  - [ ] Card settings (freeze, limits) — requires Phase 4 card-service
+  - [x] Card settings: freeze/unfreeze toggle + daily spending limit input (wired to Phase 4 card-service)
 - [x] Profile screen:
   - [x] User info + KYC status
   - [x] KYC upload flow (UI — camera integration pending)
@@ -102,33 +102,76 @@
 
 **Done criteria**: Can complete a full cross-currency send money flow end-to-end from the phone.
 
+### Phase 3 → Phase 4 Mobile UI additions
+- [x] Home: "Deposit" quick action renamed to "Wallet", navigates to WalletScreen
+- [x] Home: Notification bell shows unread badge count (polling every 30s via `GET /notifications/unread-count`)
+- [x] Cards: Full card list from API, freeze/unfreeze toggle, daily spending limit sheet
+- [x] Wallet screen: balance card, top-up sheet, withdraw-to-account sheet, paginated transaction history
+- [x] Spend Analytics screen: current-month hero card (spent/received/count/net flow), previous months history list
+- [x] Profile: "Spend Analytics" menu item → SpendScreen
+
 ---
 
 ## Phase 4 — Supporting Services (Weeks 12–13)
 **Goal**: Complete notification, cards, wallet, and analytics
 
-- [ ] Card Service:
-  - [ ] Virtual card generation (tokenized PAN via mock BIN)
-  - [ ] Physical card request
-  - [ ] Card freeze/unfreeze
-  - [ ] Spending limits per card
-- [ ] Wallet Service:
-  - [ ] Top-up via mock payment gateway
-  - [ ] Withdraw to bank account
-  - [ ] Wallet-to-account transfer
-- [ ] Notification Service:
-  - [ ] Push notifications (FCM for Android, APNs for iOS)
-  - [ ] Email (SendGrid or similar)
-  - [ ] SMS (Twilio or similar)
-  - [ ] Consume Kafka topics and dispatch notifications
-- [ ] Analytics Service:
-  - [ ] Spend by category (weekly/monthly)
-  - [ ] Transaction volume metrics
-  - [ ] Audit log (immutable, MongoDB)
+- [x] Card Service:
+  - [x] Virtual card generation (tokenized PAN via mock BIN 411111)
+  - [x] Physical card request
+  - [x] Card freeze/unfreeze
+  - [x] Spending limits per card
+- [x] Wallet Service:
+  - [x] Top-up via mock payment gateway
+  - [x] Withdraw to bank account
+  - [x] Wallet transaction history (paginated)
+  - [x] Kafka events: `wallet.top-up.completed`, `wallet.withdrawal.completed`
+- [x] Notification Service:
+  - [x] `NotificationProvider` interface — push/email/SMS are mock log-only beans (`@ConditionalOnProperty`)
+  - [x] FCM (push): upgrade path documented in `MockPushProvider.java` — set `notification.push.enabled=true`
+  - [x] Email (SendGrid): upgrade path documented in `MockEmailProvider.java` — set `notification.email.enabled=true`
+  - [x] SMS (Twilio): full implementation code in `MockSmsProvider.java` — set `notification.sms.enabled=true` + env vars
+  - [x] Kafka consumers: `transaction.payment.created/completed/failed`, `user.kyc.approved`, `fraud.alert.raised`, `wallet.top-up.completed`, `wallet.withdrawal.completed`
+  - [x] In-app notification history stored in MongoDB
+  - [x] `GET /api/v1/notifications`, `GET /unread-count`, `PUT /{id}/read`
+- [x] Analytics Service:
+  - [x] Monthly spend summary (totalSpent, totalReceived, transactionCount) per user
+  - [x] Immutable audit log (MongoDB) — records all transfers, KYC approvals, fraud alerts, wallet ops
+  - [x] Kafka consumers: payment completed/failed, KYC approved, fraud alerts, wallet events
+  - [x] `GET /api/v1/analytics/spend`, `/spend/current-month`
+  - [x] `GET /api/v1/analytics/audit-logs` (Admin only — filterable by actorId, date range)
 
 ---
 
-## Phase 5 — Admin Dashboard + Infra (Weeks 14–15)
+## Phase 5 — Card Payments (Weeks 14–15)
+**Goal**: Make virtual/physical cards a real spending instrument — and give card freeze + per-card daily limits something to enforce
+
+> **Why this phase exists**: Card freeze and per-card daily limits (built in Phase 4) currently persist but gate nothing, because P2P transfers are account-to-account and never touch cards. This phase introduces a card-payment flow (card → merchant) where a card's `status` and `dailyLimit` are actually enforced.
+
+- [ ] Card Service — payment authorization:
+  - [ ] `POST /api/v1/cards/{cardId}/pay` — authorize a card payment (merchant, amount, currency) with `X-Idempotency-Key`
+  - [ ] Enforce card `status` — decline if `FROZEN` (`CARD_FROZEN` / 403) or `CANCELLED`
+  - [ ] Enforce per-card `dailyLimit` — today's authorized spend + this amount must stay ≤ limit (`LIMIT_EXCEEDED` / 422)
+  - [ ] Debit the card's linked account via internal REST call to account-service
+  - [ ] Persist `card_transactions` (PostgreSQL) — merchant, amount, currency, status, authorizedAt
+  - [ ] Publish `card.payment.completed` / `card.payment.declined` Kafka events
+- [ ] Account Service:
+  - [ ] `/internal/v1/accounts/{id}/debit` internal endpoint (mirror of the existing `/credit`)
+- [ ] Daily-limit tracking:
+  - [ ] Redis day-counter `card:spend:{cardId}:{yyyy-MM-dd}` (TTL to midnight), reconciled against the `card_transactions` sum
+- [ ] Notification Service:
+  - [ ] Consume `card.payment.completed` / `card.payment.declined` → push/email notification
+- [ ] Analytics Service:
+  - [ ] Include card payments in monthly spend summary + immutable audit log
+- [ ] Mobile:
+  - [ ] Cards screen: "Pay with card" demo flow (merchant + amount) with decline reasons surfaced (frozen / over daily limit)
+  - [ ] Per-card transaction history
+- [ ] Postman collection at `docs/postman/BankApp-Phase5-CardPayments.postman_collection.json`
+
+**Done criteria**: A card payment is declined when the card is frozen or the daily limit is exceeded, and otherwise succeeds — debiting the card's linked account and notifying the user.
+
+---
+
+## Phase 6 — Admin Dashboard + Infra (Weeks 16–17)
 **Goal**: Admin web app + production-ready infra
 
 - [ ] React + Vite admin project setup
@@ -149,7 +192,10 @@
 ## Current Status
 > Update this section as you progress through phases.
 
-**Phase**: 3 — Mobile App ✅ Complete
+**Phase**: 5 — Card Payments 🔲 Next
 **Phase 1 Completed**: 2026-06-18 (OAuth2 Google login deferred to later)
 **Phase 2 Completed**: 2026-06-19
 **Phase 3 Completed**: 2026-06-20 (full mobile app + cross-currency transfers + UX polish)
+**Phase 4 Completed**: 2026-06-20 (card, wallet, notification, analytics services — providers are mock/log-only with real upgrade paths documented)
+
+> **Phase 5 rationale**: card freeze + per-card daily limit were wired end-to-end in Phase 4 (UI → API → DB), but they enforce nothing yet because transfers are account-to-account and never touch cards. Phase 5 adds the card-payment flow (card → merchant) that enforces `status` and `dailyLimit`. Until then, freeze/limit are correctly persisted card-level settings with **no effect on P2P transfers — by design**.

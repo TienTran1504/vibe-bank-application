@@ -1,0 +1,61 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: notification-service
+
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://bankapp:secret@localhost:27017/bankapp?authSource=admin}
+      database: bankapp
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+# ─── Notification providers ───────────────────────────────────────────────────
+# All providers are MOCK (log-only) by default.
+# To enable a real provider, set the corresponding env vars and change enabled=true.
+notification:
+  push:
+    enabled: false
+    # Future: FCM_SERVER_KEY or Firebase service-account JSON path
+    fcm-server-key: ${FCM_SERVER_KEY:}
+  email:
+    enabled: false
+    # Future: configure SendGrid or SMTP
+    # provider: sendgrid | smtp
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-address: ${EMAIL_FROM:noreply@bankapp.com}
+  sms:
+    enabled: false
+    # Future: configure Twilio
+    # provider: twilio
+    twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
+    twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
+    twilio-from-number: ${TWILIO_FROM_NUMBER:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.bankapp: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    mongodb:
+      uri: mongodb://bankapp:secret@mongodb:27017/bankapp?authSource=admin
+  kafka:
+    bootstrap-servers: kafka:29092

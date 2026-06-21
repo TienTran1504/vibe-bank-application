@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: jdbc:tc:postgresql:16:///auth_db?TC_REUSABLE=true
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
-    username: bankapp
-    password: secret
+    url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_db}
+    driver-class-name: org.postgresql.Driver
+    username: ${TEST_DATASOURCE_USERNAME:bankapp}
+    password: ${TEST_DATASOURCE_PASSWORD:secret}
 
   jpa:
     hibernate:
@@ -14,11 +14,12 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6370  # Use embedded or mock; override in CI
+      host: ${TEST_REDIS_HOST:localhost}
+      port: ${TEST_REDIS_PORT:6379}
+      password: ${TEST_REDIS_PASSWORD:secret}
 
   kafka:
-    bootstrap-servers: localhost:9999  # Disabled in unit tests
+    bootstrap-servers: ${TEST_KAFKA_SERVERS:localhost:9092}
 
 jwt:
   secret: test-secret-must-be-at-least-256-bits-long-for-hmac-sha256!!

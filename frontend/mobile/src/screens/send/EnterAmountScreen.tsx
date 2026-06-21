@@ -24,10 +24,19 @@ export function EnterAmountScreen({ route, navigation }: Props) {
   const [errorMsg, setErrorMsg]     = useState('');
   const [showError, setShowError]   = useState(false);
 
-  // Auto-select first active account on load
+  // Source accounts exclude the recipient account — you can't send to yourself.
+  // Match on both id and account number so the recipient is filtered out reliably.
+  const sourceAccounts = accounts.filter(
+    a =>
+      a.status === 'ACTIVE' &&
+      a.id !== toAccountId &&
+      a.accountNumber !== recipientAccountNumber,
+  );
+
+  // Auto-select first eligible source account on load
   useEffect(() => {
-    if (accounts.length > 0 && !selectedAccountId) {
-      setSelectedAccountId(accounts.find(a => a.status === 'ACTIVE')?.id ?? null);
+    if (sourceAccounts.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(sourceAccounts[0].id);
     }
   }, [accounts]);
 
@@ -58,6 +67,10 @@ export function EnterAmountScreen({ route, navigation }: Props) {
     }
     if (!fromAccount) {
       showValidationError('Please select an account to send from.');
+      return;
+    }
+    if (fromAccount.id === toAccountId) {
+      showValidationError("You can't transfer to the same account you're sending from. Choose a different account.");
       return;
     }
     // For cross-currency: check if sender has enough to cover amount + fee
@@ -114,7 +127,7 @@ export function EnterAmountScreen({ route, navigation }: Props) {
           style={styles.accountScroll}
           contentContainerStyle={styles.accountScrollContent}
         >
-          {accounts.filter(a => a.status === 'ACTIVE').map((account) => {
+          {sourceAccounts.map((account) => {
             const isSelected = account.id === selectedAccountId;
             const sym = CURRENCY_SYMBOLS[account.currency] ?? account.currency;
             return (

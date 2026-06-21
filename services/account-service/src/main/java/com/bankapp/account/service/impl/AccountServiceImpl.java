@@ -122,6 +122,20 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     @Transactional
+    public void creditAccount(UUID accountId, BigDecimal amount) {
+        BankAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new BusinessException("NOT_FOUND", "Account not found", HttpStatus.NOT_FOUND));
+        if (account.getStatus() != BankAccount.AccountStatus.ACTIVE) {
+            throw new BusinessException("ACCOUNT_FROZEN", "Account is not active", HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+        account.setBalance(account.getBalance().add(amount));
+        account.setAvailableBalance(account.getAvailableBalance().add(amount));
+        accountRepository.save(account);
+        log.info("Internal credit accountId={} amount={}", accountId, amount);
+    }
+
+    @Override
+    @Transactional
     public void handleKycApproved(KycApprovedEvent event) {
         UUID userId = UUID.fromString(event.getUserId());
         // Auto-create a default USD CHECKING account when KYC is approved

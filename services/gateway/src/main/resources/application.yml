@@ -50,6 +50,18 @@ spring:
           predicates:
             - Path=/api/v1/wallets/**
 
+        # Notification Service
+        - id: notification-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/v1/notifications/**
+
+        # Analytics Service
+        - id: analytics-service
+          uri: http://localhost:8087
+          predicates:
+            - Path=/api/v1/analytics/**
+
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 
@@ -127,3 +139,11 @@ spring:
           uri: http://wallet-service:8086
           predicates:
             - Path=/api/v1/wallets/**
+        - id: notification-service
+          uri: http://notification-service:8085
+          predicates:
+            - Path=/api/v1/notifications/**
+        - id: analytics-service
+          uri: http://analytics-service:8087
+          predicates:
+            - Path=/api/v1/analytics/**

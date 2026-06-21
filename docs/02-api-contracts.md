@@ -155,9 +155,19 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/me` | Bearer | Get wallet balance |
+| GET | `/me` | Bearer | Get or create wallet |
 | POST | `/top-up` | Bearer | Add funds (mock gateway) |
-| POST | `/withdraw` | Bearer | Withdraw to linked bank |
+| POST | `/withdraw` | Bearer | Withdraw to bank account |
+| GET | `/transactions` | Bearer | Wallet transaction history (paginated) |
+
+**Top-up Request:**
+```json
+{ "amount": "100.00", "paymentMethodToken": "mock-card-token" }
+```
+**Withdraw Request:**
+```json
+{ "amount": "50.00", "toAccountId": "uuid" }
+```
 
 ---
 
@@ -167,8 +177,58 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 |--------|------|------|-------------|
 | GET | `/` | Bearer | List my cards |
 | POST | `/virtual` | Bearer | Create virtual card |
+| POST | `/physical` | Bearer | Request physical card |
 | PUT | `/{cardId}/freeze` | Bearer | Freeze/unfreeze card |
 | PUT | `/{cardId}/limits` | Bearer | Set spending limit |
+
+**Create Virtual Card Request:**
+```json
+{ "accountId": "uuid" }
+```
+**Freeze Request:**
+```json
+{ "freeze": true }
+```
+**Spending Limit Request:**
+```json
+{ "dailyLimit": "500.00" }
+```
+
+---
+
+## Notification Service `/api/v1/notifications`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/` | Bearer | List my notifications (paginated) |
+| GET | `/unread-count` | Bearer | Count of unread notifications |
+| PUT | `/{id}/read` | Bearer | Mark notification as read |
+
+Notifications are dispatched automatically via Kafka when transactions complete, KYC is approved, fraud alerts are raised, or wallet operations complete. In the current implementation (Phase 4) all providers are **mock/log-only** — push (FCM), email (SendGrid), and SMS (Twilio) providers are wired as `@ConditionalOnProperty` beans ready to be enabled without code changes.
+
+---
+
+## Analytics Service `/api/v1/analytics`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/spend` | Bearer | All monthly spend summaries for current user |
+| GET | `/spend/current-month` | Bearer | Current month spend vs received |
+| GET | `/audit-logs` | Admin | Paginated audit log (query by actorId, date range) |
+
+**Spend Summary Response:**
+```json
+{
+  "data": {
+    "period": "2026-06",
+    "totalSpent": "350.00",
+    "totalReceived": "1200.00",
+    "transactionCount": 8,
+    "currency": "USD"
+  }
+}
+```
+**Audit Log query params:** `?actorId=uuid`, `?from=2026-06-01T00:00:00Z&to=2026-06-30T23:59:59Z`, `?page=0&size=50`
 
 ---
 
