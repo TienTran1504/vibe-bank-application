@@ -4,10 +4,10 @@
   "private": true,
   "main": "./index.js",
   "scripts": {
-    "start": "expo start --port 8084",
-    "android": "expo start --android --port 8084",
-    "ios": "expo start --ios --port 8084",
-    "web": "expo start --web --port 8084"
+    "start": "expo start --port 8089",
+    "android": "expo start --android --port 8089",
+    "ios": "expo start --ios --port 8089",
+    "web": "expo start --web --port 8089"
   },
   "dependencies": {
     "@bankapp/shared": "*",

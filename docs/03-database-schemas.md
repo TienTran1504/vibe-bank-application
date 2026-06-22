@@ -127,6 +127,64 @@ CREATE INDEX idx_outbox_status ON transaction_outbox(status) WHERE status = 'PEN
 
 ---
 
+## Card Service DB (`card_db`)
+
+```sql
+CREATE TABLE cards (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID NOT NULL,
+    account_id          UUID NOT NULL,                 -- linked bank account (cross-service, no DB FK)
+    card_number_masked  VARCHAR(19) NOT NULL,          -- e.g. "**** **** **** 4406"
+    card_token          VARCHAR(255) NOT NULL UNIQUE,  -- tokenized PAN (mock BIN 411111)
+    card_type           VARCHAR(50) NOT NULL CHECK (card_type IN ('VIRTUAL', 'PHYSICAL')),
+    status              VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'
+                        CHECK (status IN ('ACTIVE', 'FROZEN', 'CANCELLED')),
+    spending_limit      NUMERIC(19, 4),                -- per-card daily limit (nullable = no limit)
+    expiry_date         DATE NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cards_user_id ON cards(user_id);
+CREATE INDEX idx_cards_account_id ON cards(account_id);
+```
+> Note: `status`/`spending_limit` are persisted but only enforced once the Phase 5 card-payment flow lands.
+
+---
+
+## Wallet Service DB (`wallet_db`)
+
+```sql
+CREATE TABLE wallets (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL UNIQUE,
+    balance     NUMERIC(19, 4) NOT NULL DEFAULT 0.0000,
+    currency    VARCHAR(3) NOT NULL DEFAULT 'USD',     -- VARCHAR(3) (not CHAR) for Hibernate validation
+    status      VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'
+                CHECK (status IN ('ACTIVE', 'FROZEN', 'CLOSED')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE wallet_transactions (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id   UUID NOT NULL REFERENCES wallets(id),
+    type        VARCHAR(50) NOT NULL CHECK (type IN ('TOP_UP', 'WITHDRAWAL', 'TRANSFER')),
+    amount      NUMERIC(19, 4) NOT NULL CHECK (amount > 0),
+    status      VARCHAR(50) NOT NULL DEFAULT 'COMPLETED'
+                CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED')),
+    reference   VARCHAR(255),
+    description VARCHAR(500),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_wallet_transactions_wallet_id ON wallet_transactions(wallet_id);
+CREATE INDEX idx_wallet_transactions_created_at ON wallet_transactions(created_at DESC);
+```
+> A `WITHDRAWAL` synchronously credits the destination bank account via the account-service internal endpoint `POST /internal/v1/accounts/{id}/credit`.
+
+---
+
 ## MongoDB Collections
 
 ### `kyc_documents` (User Service)
@@ -177,3 +235,17 @@ CREATE INDEX idx_outbox_status ON transaction_outbox(status) WHERE status = 'PEN
   "metadata": { ... }
 }
 ```
+
+### `spend_summaries` (Analytics Service)
+```json
+{
+  "_id": "ObjectId",
+  "userId": "UUID string",
+  "period": "YYYY-MM",          // e.g. "2026-06"
+  "totalSpent": "Decimal128",   // money stored as Decimal128 (not String) so $inc works
+  "totalReceived": "Decimal128",
+  "transactionCount": "long",
+  "currency": "USD"
+}
+```
+> Unique compound index on `(userId, period)`. Updated via an **atomic `$inc` upsert** (not find-then-save) so concurrent Kafka events can't create duplicate monthly summaries.

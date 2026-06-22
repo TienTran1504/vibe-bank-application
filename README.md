@@ -34,10 +34,10 @@ A PayPal-like mobile banking application built with microservices — Java 21 + 
 │     P2P Transfers · History      Rules engine · Risk scoring            │
 │     Idempotency · Saga           Velocity limits · KYC checks           │
 │                                                                         │
-│  🔲 Card Service :8084        🔲 Notification Service :8085             │
+│  ✅ Card Service :8084        ✅ Notification Service :8085             │
 │     Virtual & physical cards     Push · Email · SMS           (Phase 4) │
 │                                                                         │
-│  🔲 Wallet Service :8086      🔲 Analytics Service :8087                │
+│  ✅ Wallet Service :8086      ✅ Analytics Service :8087                │
 │     Top-up · Withdraw            Spend insights · Audit log   (Phase 4) │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │

@@ -31,13 +31,33 @@ mvn spring-boot:run -pl services/auth-service -am
 4. API Gateway `:8080`
 5. Other services (parallel)
 
+> **Kafka `NodeExists` on rebuild (known race):** Kafka/Zookeeper have no persistent volumes,
+> so on a fast `docker-compose up -d --build` Kafka can exit during startup with
+> `KeeperException$NodeExistsException` — Zookeeper still holds the previous broker's ephemeral
+> `/brokers/ids/1` node from a session that hasn't timed out yet. The compose file sets
+> `restart: on-failure` on the `kafka` service so Docker retries until the stale node expires
+> (usually one retry). If it ever stays down, recreate the trio cleanly:
+> ```bash
+> docker-compose rm -sf kafka-ui kafka zookeeper
+> docker-compose up -d zookeeper   # wait until healthy
+> docker-compose up -d kafka kafka-ui
+> ```
+> This resets only transient Kafka topic/offset state — no business data lives in Kafka
+> (it's all in PostgreSQL/MongoDB).
+
 ### Frontend (npm workspaces)
 ```bash
 cd frontend
 npm install              # installs all workspaces (shared, mobile, admin)
 npm run dev -w admin     # start admin dashboard
-npm run start -w mobile  # start React Native metro bundler
+npm run start -w mobile  # start React Native metro bundler (Metro on :8089)
 ```
+
+> **Metro runs on port 8089** (pinned in `frontend/mobile/package.json` scripts). This is
+> deliberately **outside the 8080–8088 backend service block** — Metro's default 8081 collides
+> with user-service, and earlier ports (e.g. 8084 = card-service) caused the dev server to fail
+> to bind. On an Android emulator, the bundler connection uses `adb reverse tcp:8089 tcp:8089`
+> (Expo sets this automatically when `adb` is on `PATH` / `ANDROID_HOME` is set).
 
 ### Environment Variables (per service)
 Each service reads from environment or a `.env` file (gitignored).

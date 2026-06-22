@@ -70,6 +70,10 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: bankapp-kafka
+    # Self-heal the Zookeeper broker-registration race: on a fast rebuild Kafka may
+    # exit with NodeExists because Zookeeper still holds the previous broker's
+    # ephemeral /brokers/ids/1 node. Docker retries until that node expires.
+    restart: on-failure
     depends_on:
       zookeeper:
         condition: service_healthy

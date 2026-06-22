@@ -62,7 +62,9 @@ export const typography = {
 Bottom Tab Navigator
 ├── Home (house icon)
 │   ├── Dashboard Screen
-│   └── Account Detail Screen
+│   ├── Account Detail Screen
+│   ├── Wallet Screen                    ← top-up / withdraw / history (Phase 4)
+│   └── Notifications Screen             ← from the bell; unread badge (Phase 4)
 ├── Transfer (paper-plane icon)          ← renamed from "Send"
 │   ├── Transfer To Screen (IBAN lookup)
 │   ├── Enter Amount Screen
@@ -72,12 +74,13 @@ Bottom Tab Navigator
 │   ├── Transaction List Screen          ← 5 recent on load, "Load more" fetches all
 │   └── Transaction Detail Screen
 ├── Cards (card icon)
-│   └── Cards List Screen
+│   └── Cards List Screen                ← freeze toggle + daily spending limit (Phase 4)
 └── Profile (person icon)
     ├── Profile Screen
     ├── KYC Screen
-    ├── Security Settings Screen
-    └── Notification Settings Screen
+    ├── Spend Analytics Screen           ← current-month + net flow + history (Phase 4)
+    ├── Security Settings Screen         (coming soon)
+    └── Notification Settings Screen     (coming soon)
 ```
 
 **Back navigation**: Activity, Cards, Profile, and all Transfer screens show a `← Home` button (arrow size 26, `typography.body`) that navigates to the HomeTab. This is consistent across all non-home screens.

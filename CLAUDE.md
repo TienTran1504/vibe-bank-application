@@ -23,14 +23,14 @@ bank-application/
 │   ├── base-domain/            # Shared DTOs, events, exceptions
 │   ├── gateway/                # API Gateway :8080
 │   ├── auth-service/           # Auth :8001 ✅
-│   ├── user-service/           # :8081
-│   ├── account-service/        # :8082
-│   ├── transaction-service/    # :8083
-│   ├── card-service/           # :8084
-│   ├── notification-service/   # :8085
-│   ├── wallet-service/         # :8086
-│   ├── analytics-service/      # :8087
-│   └── fraud-service/          # :8088
+│   ├── user-service/           # :8081 ✅
+│   ├── account-service/        # :8082 ✅
+│   ├── transaction-service/    # :8083 ✅
+│   ├── card-service/           # :8084 ✅
+│   ├── notification-service/   # :8085 ✅
+│   ├── wallet-service/         # :8086 ✅
+│   ├── analytics-service/      # :8087 ✅
+│   └── fraud-service/          # :8088 ✅
 │
 ├── frontend/                   # npm workspaces monorepo
 │   ├── package.json            # workspace root
@@ -50,7 +50,7 @@ bank-application/
 - **Infra only (Docker):** `docker-compose up -d postgres redis mongodb kafka zookeeper`
 - **Rebuild one service:** `docker-compose up -d --build auth-service`
 - **Frontend — install all workspaces:** `cd frontend && npm install`
-- **Mobile:** `cd frontend && npm run start -w mobile` / `npm run android -w mobile`
+- **Mobile:** `cd frontend && npm run start -w mobile` / `npm run android -w mobile` (Metro on :8089 — outside the 8080–8088 service block)
 - **Admin:** `cd frontend && npm run dev -w admin`
 - **Run backend tests:** `mvn test -pl services/auth-service`
 - **Run frontend tests:** `cd frontend && npm test -w shared`
@@ -103,6 +103,7 @@ All Postman collections live in `docs/postman/` and follow Postman Collection v2
 |---|---|---|
 | `BankApp-Auth.postman_collection.json` | Phase 1 | Register, Login, MFA, Refresh, Logout |
 | `BankApp-Phase2-CoreBanking.postman_collection.json` | Phase 2 | User profile, KYC, Accounts, Transfers, Fraud edge cases |
+| `BankApp-Phase4-SupportingServices.postman_collection.json` | Phase 4 | Cards (create/freeze/limit), Wallet (top-up/withdraw), Notifications, Analytics spend |
 
 **Rules for maintaining collections:**
 - All requests target the gateway at `http://localhost:8080` (not service ports directly), except internal endpoints under `/internal/**` which go direct to the service port

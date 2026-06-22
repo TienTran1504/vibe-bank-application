@@ -138,6 +138,8 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
   "description": "Dinner split"
 }
 ```
+`fromAccountId` must differ from `toAccountId` — a self-transfer is rejected with `400 VALIDATION_FAILED`.
+
 **Transfer Response (202 Accepted):**
 ```json
 {

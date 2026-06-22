@@ -120,6 +120,7 @@ Breaking changes require a new version. Old versions deprecated with a sunset he
 | Wallet Service | 8086 |
 | Analytics Service | 8087 |
 | Fraud Service | 8088 |
+| Mobile Metro (dev) | 8089 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 | MongoDB | 27017 |
