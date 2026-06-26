@@ -94,6 +94,28 @@ public class KafkaAnalyticsListener {
                 "WALLET_WITHDRAWAL", "WALLET", walletId, event);
     }
 
+    @KafkaListener(topics = "card.payment.completed", groupId = "analytics-service")
+    public void onCardPaymentCompleted(Map<String, Object> event) {
+        String userId    = str(event, "userId");
+        String cardTxId  = str(event, "transactionId");
+        String amountStr = str(event, "amount");
+        String currency  = str(event, "currency");
+        if (userId == null || amountStr == null) return;
+        analyticsService.recordAuditLog(userId, AuditLog.ActorType.USER,
+                "CARD_PAYMENT", "CARD", cardTxId, event);
+        analyticsService.updateSpendSummary(userId, new BigDecimal(amountStr),
+                currency != null ? currency : "USD", true);
+    }
+
+    @KafkaListener(topics = "card.payment.declined", groupId = "analytics-service")
+    public void onCardPaymentDeclined(Map<String, Object> event) {
+        String userId   = str(event, "userId");
+        String cardTxId = str(event, "transactionId");
+        if (userId == null) return;
+        analyticsService.recordAuditLog(userId, AuditLog.ActorType.USER,
+                "CARD_PAYMENT_DECLINED", "CARD", cardTxId, event);
+    }
+
     private String str(Map<String, Object> event, String key) {
         Object val = event.get(key);
         return val != null ? val.toString() : null;

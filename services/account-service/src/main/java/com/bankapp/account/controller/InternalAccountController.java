@@ -42,4 +42,13 @@ public class InternalAccountController {
         accountService.creditAccount(accountId, amount);
         return ResponseEntity.ok(Map.of("status", "credited", "accountId", accountId.toString()));
     }
+
+    @PostMapping("/{accountId}/debit")
+    public ResponseEntity<Map<String, String>> debitAccount(
+            @PathVariable UUID accountId,
+            @RequestBody Map<String, String> body) {
+        BigDecimal amount = new BigDecimal(body.get("amount"));
+        accountService.debitAccount(accountId, amount);
+        return ResponseEntity.ok(Map.of("status", "debited", "accountId", accountId.toString()));
+    }
 }

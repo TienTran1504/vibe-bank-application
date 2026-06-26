@@ -135,8 +135,8 @@ Import `docs/postman/` collections into Postman to test all endpoints.
 | 2 | Core Banking: User, Account, Transaction, Fraud services | ✅ Complete |
 | 3 | Mobile App: all screens, biometric auth, full flow | ✅ Complete |
 | 4 | Supporting: Cards, Wallet, Notifications, Analytics | ✅ Complete |
-| 5 | Card Payments: card→merchant flow enforcing freeze + daily limit | 🔲 Next |
-| 6 | Admin dashboard, Kubernetes, CI/CD, load testing | 🔲 |
+| 5 | Card Payments: card→merchant flow enforcing freeze + daily limit | ✅ Complete |
+| 6 | Admin dashboard, Kubernetes, CI/CD, load testing | 🔲 Next |
 
 See [docs/05-build-phases.md](docs/05-build-phases.md) for the full checklist.
 

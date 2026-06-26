@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,22 @@ import {
   Modal,
   Pressable,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Card } from '@bankapp/shared';
+import { Card, CardTransaction } from '@bankapp/shared';
 import { CardsStackParamList } from '../../types/navigation';
-import { useCards, useCreateVirtualCard, useFreezeCard, useSetSpendingLimit } from '../../api/cards';
+import {
+  useCards,
+  useCreateVirtualCard,
+  useFreezeCard,
+  useSetSpendingLimit,
+  useCardPay,
+  useCardTransactions,
+} from '../../api/cards';
 import { useAccounts } from '../../api/accounts';
 import { AppAlert } from '../../components/AppAlert';
 import { colors } from '../../theme/colors';
@@ -25,18 +34,73 @@ import { typography } from '../../theme/typography';
 
 type Props = NativeStackScreenProps<CardsStackParamList, 'CardsList'>;
 
+const DECLINE_MESSAGES: Record<string, string> = {
+  CARD_FROZEN: 'This card is frozen. Unfreeze it to make payments.',
+  CARD_CANCELLED: 'This card has been cancelled.',
+  CARD_EXPIRED: 'This card has expired and can no longer be used.',
+  LIMIT_EXCEEDED: "This payment exceeds the card's daily spending limit.",
+  INSUFFICIENT_FUNDS: "Your linked account doesn't have enough money for this payment.",
+};
+
 export function CardsScreen({ navigation }: Props) {
-  const { data: cards, isLoading } = useCards();
+  const { data: cards, isLoading, refetch } = useCards();
   const { data: accounts } = useAccounts();
+
+  // Refetch whenever the Cards tab gains focus — the tab stays mounted, so without
+  // this a changed expiry/status/limit would keep showing stale cached values.
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
   const createCard = useCreateVirtualCard();
   const freezeCard = useFreezeCard();
   const setLimit = useSetSpendingLimit();
+  const cardPay = useCardPay();
 
   const [showCreateSheet, setShowCreateSheet] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [limitSheet, setLimitSheet] = useState<{ cardId: string; current: string } | null>(null);
   const [limitInput, setLimitInput] = useState('');
+  const [paySheet, setPaySheet] = useState<Card | null>(null);
+  const [merchant, setMerchant] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [historyCard, setHistoryCard] = useState<Card | null>(null);
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; title: string; message: string } | null>(null);
+
+  function openPaySheet(card: Card) {
+    setMerchant('');
+    setPayAmount('');
+    setPaySheet(card);
+  }
+
+  async function handlePay() {
+    if (!paySheet) return;
+    const parsed = parseFloat(payAmount);
+    if (!merchant.trim()) {
+      setAlert({ type: 'error', title: 'Merchant Required', message: 'Enter a merchant name.' });
+      return;
+    }
+    if (isNaN(parsed) || parsed <= 0) {
+      setAlert({ type: 'error', title: 'Invalid Amount', message: 'Enter an amount greater than $0.' });
+      return;
+    }
+    try {
+      const tx = await cardPay.mutateAsync({
+        cardId: paySheet.id,
+        merchant: merchant.trim(),
+        amount: parsed.toFixed(2),
+        currency: 'USD',
+      });
+      setPaySheet(null);
+      setAlert({
+        type: 'success',
+        title: 'Payment Approved',
+        message: `$${parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} paid to ${tx.merchant}.`,
+      });
+    } catch (e: any) {
+      const code: string | undefined = e?.response?.data?.error;
+      const reason = (code && DECLINE_MESSAGES[code]) || e?.response?.data?.message || 'Payment could not be completed.';
+      setPaySheet(null);
+      setAlert({ type: 'error', title: 'Payment Declined', message: reason });
+    }
+  }
 
   async function handleCreate() {
     if (!selectedAccountId) return;
@@ -97,6 +161,7 @@ export function CardsScreen({ navigation }: Props) {
         style={styles.container}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => refetch()} tintColor={colors.primary} />}
       >
         <View style={styles.headerRow}>
           <TouchableOpacity
@@ -117,8 +182,11 @@ export function CardsScreen({ navigation }: Props) {
             <CardItem
               key={card.id}
               card={card}
+              accountLast4={accounts?.find((a) => a.id === card.accountId)?.accountNumber.slice(-4)}
               onFreeze={handleFreeze}
               onSetLimit={openLimitSheet}
+              onPay={openPaySheet}
+              onHistory={setHistoryCard}
             />
           ))
         ) : (
@@ -255,6 +323,84 @@ export function CardsScreen({ navigation }: Props) {
         </View>
       </Modal>
 
+      {/* Pay With Card Sheet */}
+      <Modal
+        visible={!!paySheet}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setPaySheet(null)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPaySheet(null)} />
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Pay with card</Text>
+            <TouchableOpacity onPress={() => setPaySheet(null)} style={styles.closeBtn}>
+              <Text style={styles.closeIcon}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hintText}>
+            Debits the card's linked account. Frozen cards and over-limit payments are declined.
+          </Text>
+
+          <Text style={styles.sheetLabel}>Merchant</Text>
+          <TextInput
+            style={styles.merchantInput}
+            value={merchant}
+            onChangeText={setMerchant}
+            placeholder="e.g. Apple Store"
+            placeholderTextColor={colors.textMuted}
+            maxLength={120}
+          />
+
+          <Text style={[styles.sheetLabel, { marginTop: 16 }]}>Amount</Text>
+          <View style={styles.limitRow}>
+            <Text style={styles.limitSymbol}>$</Text>
+            <TextInput
+              style={styles.limitInput}
+              value={payAmount}
+              onChangeText={(v) => setPayAmount(v.replace(/[^0-9.]/g, ''))}
+              keyboardType="decimal-pad"
+              placeholder="0.00"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.chipRow}>
+            {['5', '20', '50', '100'].map((v) => (
+              <TouchableOpacity key={v} style={styles.chip} onPress={() => setPayAmount(v)}>
+                <Text style={styles.chipText}>${v}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.createBtn, (!merchant || !payAmount || cardPay.isPending) && styles.btnDisabled]}
+            onPress={handlePay}
+            disabled={!merchant || !payAmount || cardPay.isPending}
+            activeOpacity={0.85}
+          >
+            {cardPay.isPending ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.createBtnText}>Pay Now</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Card Transaction History Sheet */}
+      <Modal
+        visible={!!historyCard}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setHistoryCard(null)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setHistoryCard(null)} />
+        {historyCard && <CardHistorySheet card={historyCard} onClose={() => setHistoryCard(null)} />}
+      </Modal>
+
       <AppAlert
         visible={!!alert}
         type={alert?.type ?? 'success'}
@@ -266,16 +412,83 @@ export function CardsScreen({ navigation }: Props) {
   );
 }
 
+function CardHistorySheet({ card, onClose }: { card: Card; onClose: () => void }) {
+  const { data, isLoading } = useCardTransactions(card.id, 0, 50);
+  const txns = data?.content ?? [];
+
+  return (
+    <View style={[styles.sheet, { maxHeight: '78%' }]}>
+      <View style={styles.handle} />
+      <View style={styles.sheetHeader}>
+        <Text style={styles.sheetTitle}>Card Transactions</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <Text style={styles.closeIcon}>✕</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.hintText}>{card.cardNumberMasked}</Text>
+
+      {isLoading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginVertical: 40 }} />
+      ) : txns.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: 32, gap: 8 }}>
+          <Ionicons name="receipt-outline" size={32} color={colors.textMuted} />
+          <Text style={styles.hintText}>No card payments yet.</Text>
+        </View>
+      ) : (
+        <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+          {txns.map((tx) => (
+            <CardTxRow key={tx.id} tx={tx} />
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function CardTxRow({ tx }: { tx: CardTransaction }) {
+  const declined = tx.status === 'DECLINED';
+  return (
+    <View style={cardStyles.txRow}>
+      <View style={[cardStyles.txIcon, { backgroundColor: declined ? '#fff0f0' : '#ecfdf5' }]}>
+        <Ionicons
+          name={declined ? 'close-circle' : 'checkmark-circle'}
+          size={20}
+          color={declined ? colors.danger : colors.success}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={cardStyles.txMerchant} numberOfLines={1}>{tx.merchant}</Text>
+        <Text style={cardStyles.txMeta}>
+          {declined
+            ? `Declined · ${tx.declineReason ?? ''}`
+            : new Date(tx.authorizedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </Text>
+      </View>
+      <Text style={[cardStyles.txAmount, { color: declined ? colors.textMuted : colors.textPrimary }]}>
+        {declined ? '' : '-'}${Number(tx.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </Text>
+    </View>
+  );
+}
+
 function CardItem({
   card,
+  accountLast4,
   onFreeze,
   onSetLimit,
+  onPay,
+  onHistory,
 }: {
   card: Card;
+  accountLast4?: string;
   onFreeze: (card: Card) => void;
   onSetLimit: (card: Card) => void;
+  onPay: (card: Card) => void;
+  onHistory: (card: Card) => void;
 }) {
   const isFrozen = card.status === 'FROZEN';
+  const today = new Date().toISOString().slice(0, 10);
+  const isExpired = !!card.expiryDate && card.expiryDate < today;
   const expiry = card.expiryDate
     ? card.expiryDate.substring(5, 7) + '/' + card.expiryDate.substring(2, 4)
     : '••/••';
@@ -283,23 +496,33 @@ function CardItem({
   return (
     <View style={cardStyles.wrapper}>
       <LinearGradient
-        colors={isFrozen ? ['#6b7280', '#9ca3af'] : [colors.primary, colors.primaryLight]}
+        colors={isFrozen || isExpired ? ['#6b7280', '#9ca3af'] : [colors.primary, colors.primaryLight]}
         style={cardStyles.card}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
         <View style={cardStyles.topRow}>
           <Text style={cardStyles.cardType}>{card.cardType}</Text>
-          {isFrozen && (
+          {isFrozen ? (
             <View style={cardStyles.frozenBadge}>
               <Ionicons name="snow-outline" size={12} color={colors.white} />
               <Text style={cardStyles.frozenText}>Frozen</Text>
             </View>
-          )}
+          ) : isExpired ? (
+            <View style={cardStyles.frozenBadge}>
+              <Ionicons name="time-outline" size={12} color={colors.white} />
+              <Text style={cardStyles.frozenText}>Expired</Text>
+            </View>
+          ) : null}
         </View>
         <Text style={cardStyles.number}>{card.cardNumberMasked}</Text>
         <View style={cardStyles.footer}>
-          <Text style={cardStyles.expiry}>VALID THRU  {expiry}</Text>
+          <View>
+            {accountLast4 ? (
+              <Text style={cardStyles.acctLabel}>ACCOUNT  •••• {accountLast4}</Text>
+            ) : null}
+            <Text style={cardStyles.expiry}>VALID THRU  {expiry}</Text>
+          </View>
           <Text style={cardStyles.network}>VISA</Text>
         </View>
       </LinearGradient>
@@ -334,6 +557,29 @@ function CardItem({
             </Text>
           </View>
           <Text style={cardStyles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <View style={cardStyles.divider} />
+
+        <TouchableOpacity
+          style={cardStyles.actionRow}
+          onPress={() => onHistory(card)}
+          activeOpacity={0.7}
+        >
+          <View>
+            <Text style={cardStyles.actionLabel}>Transaction History</Text>
+            <Text style={cardStyles.actionSub}>View card payments</Text>
+          </View>
+          <Text style={cardStyles.chevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[cardStyles.payBtn, isFrozen && cardStyles.payBtnFrozen]}
+          onPress={() => onPay(card)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="card-outline" size={18} color={colors.white} />
+          <Text style={cardStyles.payBtnText}>Pay with card</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -371,7 +617,8 @@ const cardStyles = StyleSheet.create({
   },
   frozenText: { ...typography.caption, color: colors.white, fontWeight: '600' },
   number: { ...typography.h2, color: colors.white, letterSpacing: 6 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  acctLabel: { ...typography.caption, color: 'rgba(255,255,255,0.85)', letterSpacing: 1, marginBottom: 3, fontWeight: '600' },
   expiry: { ...typography.small, color: 'rgba(255,255,255,0.7)', letterSpacing: 1 },
   network: { ...typography.h3, color: colors.white, fontStyle: 'italic' },
   actions: {
@@ -392,6 +639,25 @@ const cardStyles = StyleSheet.create({
   actionSub: { ...typography.caption, color: colors.textMuted },
   divider: { height: 1, backgroundColor: colors.border },
   chevron: { ...typography.h3, color: colors.textMuted, lineHeight: 24 },
+
+  payBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    marginVertical: 12,
+  },
+  payBtnFrozen: { backgroundColor: colors.textMuted },
+  payBtnText: { ...typography.label, color: colors.white, fontWeight: '700' },
+
+  txRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  txIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+  txMerchant: { ...typography.label, color: colors.textPrimary, fontWeight: '600', marginBottom: 2 },
+  txMeta: { ...typography.caption, color: colors.textMuted },
+  txAmount: { ...typography.label, fontWeight: '700' },
 });
 
 const styles = StyleSheet.create({
@@ -513,6 +779,16 @@ const styles = StyleSheet.create({
   },
   limitSymbol: { ...typography.amountMedium, color: colors.textPrimary, marginRight: 6 },
   limitInput: { flex: 1, ...typography.amountMedium, color: colors.textPrimary },
+  merchantInput: {
+    height: 48,
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    ...typography.body,
+    color: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   chipRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   chip: {
     flex: 1,

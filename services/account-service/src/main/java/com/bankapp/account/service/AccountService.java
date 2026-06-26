@@ -16,6 +16,7 @@ public interface AccountService {
     AccountResponse lookupByAccountNumber(String accountNumber);
     AccountResponse topUp(UUID accountId, UUID userId, TopUpRequest request);
     void creditAccount(UUID accountId, BigDecimal amount);
+    void debitAccount(UUID accountId, BigDecimal amount);
     void handleKycApproved(KycApprovedEvent event);
     void handlePaymentCreated(Map<String, Object> event);
 }

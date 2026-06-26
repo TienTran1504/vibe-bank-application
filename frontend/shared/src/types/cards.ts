@@ -25,3 +25,22 @@ export interface FreezeCardRequest {
 export interface SpendingLimitRequest {
   dailyLimit: string;
 }
+
+export type CardPaymentStatus = 'COMPLETED' | 'DECLINED';
+
+export interface CardPaymentRequest {
+  merchant: string;
+  amount: string;    // decimal string, e.g. "49.99"
+  currency?: string; // optional, defaults to USD (no FX in Phase 5)
+}
+
+export interface CardTransaction {
+  id: string;
+  cardId: string;
+  merchant: string;
+  amount: number;
+  currency: string;
+  status: CardPaymentStatus;
+  declineReason: string | null; // CARD_FROZEN | LIMIT_EXCEEDED | INSUFFICIENT_FUNDS | ...
+  authorizedAt: string;
+}

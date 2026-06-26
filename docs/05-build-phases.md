@@ -147,27 +147,28 @@
 
 > **Why this phase exists**: Card freeze and per-card daily limits (built in Phase 4) currently persist but gate nothing, because P2P transfers are account-to-account and never touch cards. This phase introduces a card-payment flow (card → merchant) where a card's `status` and `dailyLimit` are actually enforced.
 
-- [ ] Card Service — payment authorization:
-  - [ ] `POST /api/v1/cards/{cardId}/pay` — authorize a card payment (merchant, amount, currency) with `X-Idempotency-Key`
-  - [ ] Enforce card `status` — decline if `FROZEN` (`CARD_FROZEN` / 403) or `CANCELLED`
-  - [ ] Enforce per-card `dailyLimit` — today's authorized spend + this amount must stay ≤ limit (`LIMIT_EXCEEDED` / 422)
-  - [ ] Debit the card's linked account via internal REST call to account-service
-  - [ ] Persist `card_transactions` (PostgreSQL) — merchant, amount, currency, status, authorizedAt
-  - [ ] Publish `card.payment.completed` / `card.payment.declined` Kafka events
-- [ ] Account Service:
-  - [ ] `/internal/v1/accounts/{id}/debit` internal endpoint (mirror of the existing `/credit`)
-- [ ] Daily-limit tracking:
-  - [ ] Redis day-counter `card:spend:{cardId}:{yyyy-MM-dd}` (TTL to midnight), reconciled against the `card_transactions` sum
-- [ ] Notification Service:
-  - [ ] Consume `card.payment.completed` / `card.payment.declined` → push/email notification
-- [ ] Analytics Service:
-  - [ ] Include card payments in monthly spend summary + immutable audit log
-- [ ] Mobile:
-  - [ ] Cards screen: "Pay with card" demo flow (merchant + amount) with decline reasons surfaced (frozen / over daily limit)
-  - [ ] Per-card transaction history
-- [ ] Postman collection at `docs/postman/BankApp-Phase5-CardPayments.postman_collection.json`
+- [x] Card Service — payment authorization:
+  - [x] `POST /api/v1/cards/{cardId}/pay` — authorize a card payment (merchant, amount, currency) with `X-Idempotency-Key`
+  - [x] Enforce card `status` — decline if `FROZEN` (`CARD_FROZEN` / 403) or `CANCELLED`
+  - [x] Enforce card validity — decline if past `expiry_date` (`CARD_EXPIRED` / 403)
+  - [x] Enforce per-card `dailyLimit` — today's authorized spend + this amount must stay ≤ limit (`LIMIT_EXCEEDED` / 422)
+  - [x] Debit the card's linked account via internal REST call to account-service
+  - [x] Persist `card_transactions` (PostgreSQL) — merchant, amount, currency, status, authorizedAt
+  - [x] Publish `card.payment.completed` / `card.payment.declined` Kafka events
+- [x] Account Service:
+  - [x] `/internal/v1/accounts/{id}/debit` internal endpoint (mirror of the existing `/credit`)
+- [x] Daily-limit tracking:
+  - [x] Redis day-counter `card:spend:{cardId}:{yyyy-MM-dd}` (TTL to midnight), reconciled against the `card_transactions` sum
+- [x] Notification Service:
+  - [x] Consume `card.payment.completed` / `card.payment.declined` → push/email notification
+- [x] Analytics Service:
+  - [x] Include card payments in monthly spend summary + immutable audit log
+- [x] Mobile:
+  - [x] Cards screen: "Pay with card" demo flow (merchant + amount) with decline reasons surfaced (frozen / over daily limit)
+  - [x] Per-card transaction history
+- [x] Postman collection at `docs/postman/BankApp-Phase5-CardPayments.postman_collection.json`
 
-**Done criteria**: A card payment is declined when the card is frozen or the daily limit is exceeded, and otherwise succeeds — debiting the card's linked account and notifying the user.
+**Done criteria**: A card payment is declined when the card is frozen or the daily limit is exceeded, and otherwise succeeds — debiting the card's linked account and notifying the user. ✅
 
 ---
 
@@ -181,6 +182,10 @@
   - [ ] Transaction monitor (real-time table)
   - [ ] Fraud alert inbox
   - [ ] System health dashboard
+  - [ ] Card management — search cards; **edit a card's expiry date** (renew/extend or force-expire), freeze/cancel
+    - [ ] Card Service: `PUT /api/v1/cards/{cardId}/expiry` (Admin only) `{ "expiryDate": "YYYY-MM-DD" }`
+      — validates a real ISO date, writes `cards.expiry_date`; the Phase 5 payment flow already enforces it live (`CARD_EXPIRED`)
+    - [ ] Audit every expiry change to the immutable analytics audit log (`actorType: ADMIN`, `action: CARD_EXPIRY_UPDATED`)
 - [ ] Kubernetes Helm charts for all services
 - [ ] CI/CD: GitHub Actions → Docker Hub → K8s rolling deploy
 - [ ] Prometheus + Grafana dashboards (request rate, error rate, latency)
@@ -192,10 +197,11 @@
 ## Current Status
 > Update this section as you progress through phases.
 
-**Phase**: 5 — Card Payments 🔲 Next
+**Phase**: 6 — Admin Dashboard + Infra 🔲 Next
 **Phase 1 Completed**: 2026-06-18 (OAuth2 Google login deferred to later)
 **Phase 2 Completed**: 2026-06-19
 **Phase 3 Completed**: 2026-06-20 (full mobile app + cross-currency transfers + UX polish)
 **Phase 4 Completed**: 2026-06-20 (card, wallet, notification, analytics services — providers are mock/log-only with real upgrade paths documented)
+**Phase 5 Completed**: 2026-06-26 (card-payment flow — enforces card freeze, expiry, and per-card daily limit; debits linked account; Kafka events to notifications + analytics)
 
-> **Phase 5 rationale**: card freeze + per-card daily limit were wired end-to-end in Phase 4 (UI → API → DB), but they enforce nothing yet because transfers are account-to-account and never touch cards. Phase 5 adds the card-payment flow (card → merchant) that enforces `status` and `dailyLimit`. Until then, freeze/limit are correctly persisted card-level settings with **no effect on P2P transfers — by design**.
+> **Phase 5 outcome**: card freeze, expiry, and per-card daily limit now enforce something — the card-payment flow (`POST /cards/{id}/pay`) declines frozen cards (`CARD_FROZEN`/403), expired cards (`CARD_EXPIRED`/403), and over-limit payments (`LIMIT_EXCEEDED`/422), debits the card's linked account, and records `card_transactions`. P2P transfers remain account-to-account and are deliberately unaffected by card controls.

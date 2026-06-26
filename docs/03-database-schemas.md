@@ -147,8 +147,27 @@ CREATE TABLE cards (
 
 CREATE INDEX idx_cards_user_id ON cards(user_id);
 CREATE INDEX idx_cards_account_id ON cards(account_id);
+
+-- Phase 5: card-payment ledger (card → merchant). Enforces card status + daily limit.
+CREATE TABLE card_transactions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id         UUID NOT NULL REFERENCES cards(id),
+    user_id         UUID NOT NULL,
+    account_id      UUID NOT NULL,                 -- linked bank account that was debited
+    merchant        VARCHAR(255) NOT NULL,
+    amount          NUMERIC(19, 4) NOT NULL CHECK (amount > 0),
+    currency        VARCHAR(3) NOT NULL DEFAULT 'USD',
+    status          VARCHAR(50) NOT NULL CHECK (status IN ('COMPLETED', 'DECLINED')),
+    decline_reason  VARCHAR(100),                  -- CARD_FROZEN | LIMIT_EXCEEDED | INSUFFICIENT_FUNDS | ...
+    idempotency_key VARCHAR(255) NOT NULL UNIQUE,
+    authorized_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_card_transactions_card_id ON card_transactions(card_id);
+CREATE INDEX idx_card_transactions_authorized_at ON card_transactions(authorized_at DESC);
 ```
-> Note: `status`/`spending_limit` are persisted but only enforced once the Phase 5 card-payment flow lands.
+> Card `status` (freeze), `expiry_date` (valid-thru), and `spending_limit` (per-card daily limit) are all enforced by the Phase 5 `POST /api/v1/cards/{id}/pay` flow — a payment is declined for a frozen/cancelled card (`CARD_FROZEN`/`CARD_CANCELLED`), an expired card (`CARD_EXPIRED`, when `expiry_date < today`), or an over-limit amount (`LIMIT_EXCEEDED`). Today's spend is tracked in a Redis day-counter `card:spend:{cardId}:{yyyy-MM-dd}`, reconciled against the `card_transactions` sum.
 
 ---
 

@@ -74,7 +74,8 @@ Bottom Tab Navigator
 │   ├── Transaction List Screen          ← 5 recent on load, "Load more" fetches all
 │   └── Transaction Detail Screen
 ├── Cards (card icon)
-│   └── Cards List Screen                ← freeze toggle + daily spending limit (Phase 4)
+│   └── Cards List Screen                ← freeze toggle + daily limit (P4); pay with card,
+│                                           per-card history, account ····last4, expiry badge (P5)
 └── Profile (person icon)
     ├── Profile Screen
     ├── KYC Screen

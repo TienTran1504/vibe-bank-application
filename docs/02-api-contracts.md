@@ -175,13 +175,16 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 
 ## Card Service `/api/v1/cards`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | Bearer | List my cards |
-| POST | `/virtual` | Bearer | Create virtual card |
-| POST | `/physical` | Bearer | Request physical card |
-| PUT | `/{cardId}/freeze` | Bearer | Freeze/unfreeze card |
-| PUT | `/{cardId}/limits` | Bearer | Set spending limit |
+| Method | Path | Auth | Headers | Description |
+|--------|------|------|---------|-------------|
+| GET | `/` | Bearer | | List my cards |
+| POST | `/virtual` | Bearer | | Create virtual card |
+| POST | `/physical` | Bearer | | Request physical card |
+| PUT | `/{cardId}/freeze` | Bearer | | Freeze/unfreeze card |
+| PUT | `/{cardId}/limits` | Bearer | | Set spending limit |
+| POST | `/{cardId}/pay` | Bearer | `X-Idempotency-Key` | Authorize a card payment (Phase 5) |
+| GET | `/{cardId}/transactions` | Bearer | | Per-card payment history (paginated) |
+| PUT | `/{cardId}/expiry` | Admin | | _Planned (Phase 6)_ — edit a card's expiry date `{ "expiryDate": "YYYY-MM-DD" }`; enforced live by the payment flow |
 
 **Create Virtual Card Request:**
 ```json
@@ -194,6 +197,28 @@ OTP is 6 digits, Redis-backed, TTL configured via `otp.ttl-seconds` (default 300
 **Spending Limit Request:**
 ```json
 { "dailyLimit": "500.00" }
+```
+
+**Card Payment Request** (`POST /{cardId}/pay`, requires `X-Idempotency-Key`):
+```json
+{ "merchant": "Coffee Shop", "amount": "12.50", "currency": "USD" }
+```
+The payment debits the card's linked account (no FX in this phase). It is **declined** when the card is `FROZEN` (`CARD_FROZEN` / 403) or `CANCELLED` (`CARD_CANCELLED` / 403), when the card's valid-thru date has passed (`CARD_EXPIRED` / 403), when today's authorized spend + this amount exceeds the per-card `dailyLimit` (`LIMIT_EXCEEDED` / 422), or when the linked account has insufficient funds (`INSUFFICIENT_FUNDS` / 422). Each outcome is persisted to `card_transactions` and published as `card.payment.completed` / `card.payment.declined`.
+
+**Card Payment Response (201 Created):**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "cardId": "uuid",
+    "merchant": "Coffee Shop",
+    "amount": "12.50",
+    "currency": "USD",
+    "status": "COMPLETED",
+    "declineReason": null,
+    "authorizedAt": "2026-06-22T07:17:03Z"
+  }
+}
 ```
 
 ---
@@ -246,6 +271,10 @@ Notifications are dispatched automatically via Kafka when transactions complete,
 | `DUPLICATE_REQUEST` | 409 | Idempotency key already processed |
 | `INSUFFICIENT_FUNDS` | 422 | Not enough balance |
 | `ACCOUNT_FROZEN` | 422 | Account is suspended |
+| `CARD_FROZEN` | 403 | Card payment declined — card is frozen |
+| `CARD_CANCELLED` | 403 | Card payment declined — card is cancelled |
+| `CARD_EXPIRED` | 403 | Card payment declined — card's valid-thru date has passed |
+| `LIMIT_EXCEEDED` | 422 | Card payment exceeds the per-card daily limit |
 | `KYC_REQUIRED` | 403 | KYC not approved for this action |
 | `FRAUD_BLOCKED` | 403 | Transaction blocked by fraud rules |
 | `RATE_LIMITED` | 429 | Too many requests |

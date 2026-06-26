@@ -1,0 +1,208 @@
+{
+  "info": {
+    "name": "BankApp — Phase 5 Card Payments",
+    "_postman_id": "phase5-card-payments",
+    "description": "Card payment authorization (card → merchant) enforcing card status (frozen/cancelled) and per-card daily spending limit.\nAll requests go through the gateway at http://localhost:8080.\nSet access_token from Phase 2 login and my_card_id from Phase 4 (List/Create Card) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",     "value": "http://localhost:8080" },
+    { "key": "access_token", "value": "" },
+    { "key": "my_card_id",   "value": "" },
+    { "key": "idem_key",     "value": "" },
+    { "key": "card_tx_id",   "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Card Payments",
+      "item": [
+        {
+          "name": "1.1 Pay With Card — Success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Idempotency key required on all payment endpoints",
+                  "pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "var res = pm.response.json();",
+                  "if (res.data && res.data.id) {",
+                  "  pm.collectionVariables.set('card_tx_id', res.data.id);",
+                  "  pm.test('status COMPLETED', () => res.data.status === 'COMPLETED');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",     "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{idem_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant\": \"Coffee Shop\",\n  \"amount\": \"12.50\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","pay"] }
+          },
+          "response": [
+            {
+              "name": "201 Approved",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{access_token}}" },
+                  { "key": "X-Idempotency-Key", "value": "pm-example" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"merchant\": \"Coffee Shop\",\n  \"amount\": \"12.50\",\n  \"currency\": \"USD\"\n}" },
+                "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay" }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"id\": \"ea1f3874-7988-4b3d-bf82-30af76686ed9\",\n    \"cardId\": \"783616b2-fc5f-46ab-b8e6-05f99041526f\",\n    \"merchant\": \"Coffee Shop\",\n    \"amount\": 12.50,\n    \"currency\": \"USD\",\n    \"status\": \"COMPLETED\",\n    \"declineReason\": null,\n    \"authorizedAt\": \"2026-06-22T07:17:03Z\"\n  },\n  \"message\": \"Success\",\n  \"timestamp\": \"2026-06-22T07:17:03Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.2 Pay With Card — Frozen (decline)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 + CARD_FROZEN when card is frozen', () => pm.response.code === 403 && pm.response.json().error === 'CARD_FROZEN');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",     "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{idem_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant\": \"Electronics Store\",\n  \"amount\": \"10.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","pay"] }
+          },
+          "response": [
+            {
+              "name": "403 CARD_FROZEN",
+              "originalRequest": { "method": "POST", "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay" } },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"CARD_FROZEN\",\n  \"message\": \"Card is frozen\",\n  \"timestamp\": \"2026-06-22T07:17:20Z\",\n  \"traceId\": \"d2fcace0\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.3 Pay With Card — Over Daily Limit (decline)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 + LIMIT_EXCEEDED past daily limit', () => pm.response.code === 422 && pm.response.json().error === 'LIMIT_EXCEEDED');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization",     "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{idem_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant\": \"Big Purchase\",\n  \"amount\": \"99999.00\",\n  \"currency\": \"USD\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay", "host": ["{{base_url}}"], "path": ["api","v1","cards","{{my_card_id}}","pay"] }
+          },
+          "response": [
+            {
+              "name": "422 LIMIT_EXCEEDED",
+              "originalRequest": { "method": "POST", "url": { "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/pay" } },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"LIMIT_EXCEEDED\",\n  \"message\": \"Daily spending limit exceeded\",\n  \"timestamp\": \"2026-06-22T07:17:03Z\",\n  \"traceId\": \"f680c0e8\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "1.4 List Card Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/cards/{{my_card_id}}/transactions?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","cards","{{my_card_id}}","transactions"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "pm.test('paginated content', () => Array.isArray(pm.response.json().data.content));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

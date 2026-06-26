@@ -136,6 +136,23 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     @Transactional
+    public void debitAccount(UUID accountId, BigDecimal amount) {
+        BankAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new BusinessException("NOT_FOUND", "Account not found", HttpStatus.NOT_FOUND));
+        if (account.getStatus() != BankAccount.AccountStatus.ACTIVE) {
+            throw new BusinessException("ACCOUNT_FROZEN", "Account is not active", HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+        if (account.getAvailableBalance().compareTo(amount) < 0) {
+            throw new BusinessException("INSUFFICIENT_FUNDS", "Insufficient funds", HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+        account.setBalance(account.getBalance().subtract(amount));
+        account.setAvailableBalance(account.getAvailableBalance().subtract(amount));
+        accountRepository.save(account);
+        log.info("Internal debit accountId={} amount={}", accountId, amount);
+    }
+
+    @Override
+    @Transactional
     public void handleKycApproved(KycApprovedEvent event) {
         UUID userId = UUID.fromString(event.getUserId());
         // Auto-create a default USD CHECKING account when KYC is approved

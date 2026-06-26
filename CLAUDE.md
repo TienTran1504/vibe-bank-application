@@ -104,6 +104,7 @@ All Postman collections live in `docs/postman/` and follow Postman Collection v2
 | `BankApp-Auth.postman_collection.json` | Phase 1 | Register, Login, MFA, Refresh, Logout |
 | `BankApp-Phase2-CoreBanking.postman_collection.json` | Phase 2 | User profile, KYC, Accounts, Transfers, Fraud edge cases |
 | `BankApp-Phase4-SupportingServices.postman_collection.json` | Phase 4 | Cards (create/freeze/limit), Wallet (top-up/withdraw), Notifications, Analytics spend |
+| `BankApp-Phase5-CardPayments.postman_collection.json` | Phase 5 | Card payment (success/frozen/over-limit declines), per-card transaction history |
 
 **Rules for maintaining collections:**
 - All requests target the gateway at `http://localhost:8080` (not service ports directly), except internal endpoints under `/internal/**` which go direct to the service port

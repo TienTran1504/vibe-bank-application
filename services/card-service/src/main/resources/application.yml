@@ -26,6 +26,15 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:secret}
+
+account-service:
+  url: ${ACCOUNT_SERVICE_URL:http://localhost:8082}
+
 management:
   endpoints:
     web:
@@ -49,3 +58,9 @@ spring:
     url: jdbc:postgresql://postgres:5432/card_db
   kafka:
     bootstrap-servers: kafka:29092
+  data:
+    redis:
+      host: redis
+
+account-service:
+  url: http://account-service:8082

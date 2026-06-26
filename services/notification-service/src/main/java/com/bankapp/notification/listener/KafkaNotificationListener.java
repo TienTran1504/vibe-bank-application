@@ -101,6 +101,36 @@ public class KafkaNotificationListener {
                 event);
     }
 
+    @KafkaListener(topics = "card.payment.completed", groupId = "notification-service")
+    public void onCardPaymentCompleted(Map<String, Object> event) {
+        String userId = str(event, "userId");
+        String amount = str(event, "amount");
+        String currency = str(event, "currency");
+        String merchant = str(event, "merchant");
+        if (userId == null) return;
+        notificationService.dispatch(userId,
+                Notification.NotificationType.TRANSACTION,
+                "Card payment approved",
+                String.format("Your card payment of %s %s to %s was approved.", amount, currency, merchant),
+                event);
+    }
+
+    @KafkaListener(topics = "card.payment.declined", groupId = "notification-service")
+    public void onCardPaymentDeclined(Map<String, Object> event) {
+        String userId = str(event, "userId");
+        String amount = str(event, "amount");
+        String currency = str(event, "currency");
+        String merchant = str(event, "merchant");
+        String reason = str(event, "declineReason");
+        if (userId == null) return;
+        notificationService.dispatch(userId,
+                Notification.NotificationType.TRANSACTION,
+                "Card payment declined",
+                String.format("Your card payment of %s %s to %s was declined%s.", amount, currency, merchant,
+                        reason != null ? " (" + reason + ")" : ""),
+                event);
+    }
+
     private String str(Map<String, Object> event, String key) {
         Object val = event.get(key);
         return val != null ? val.toString() : null;
